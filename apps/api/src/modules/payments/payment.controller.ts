@@ -48,8 +48,9 @@ export class PaymentController {
 
   @Public()
   @Post('dev/checkout/:orderId/complete')
-  completeFakePayment(@Param('orderId') orderId: string) {
-    return this.payments.simulatePayment(orderId);
+  async completeFakePayment(@Param('orderId') orderId: string, @Res() response: Response) {
+    await this.payments.simulatePayment(orderId);
+    response.redirect(303, `${process.env.APP_URL}/app/payments`);
   }
 
   @Public()

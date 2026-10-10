@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import {
   CreateBucketCommand,
   GetObjectCommand,
@@ -38,7 +38,7 @@ export class StorageService implements OnModuleInit {
 
   async createUpload(storageKey: string, mimeType: string, sizeBytes: number): Promise<string> {
     if (!ALLOWED_MIME.has(mimeType) || !Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_UPLOAD_BYTES) {
-      throw new Error('Document must be a PDF, JPEG, or PNG no larger than 10 MB.');
+      throw new BadRequestException('Document must be a PDF, JPEG, or PNG no larger than 10 MB.');
     }
     return getSignedUrl(this.s3, new PutObjectCommand({
       Bucket: this.bucket, Key: storageKey, ContentType: mimeType, ContentLength: sizeBytes
@@ -62,6 +62,25 @@ export class StorageService implements OnModuleInit {
     return { sha256: createHash('sha256').update(bytes).digest('hex') };
   }
 
+  async scanAndStore(storageKey: string, mimeType: string, bytes: Buffer): Promise<{ sha256: string }> {
+    if (!ALLOWED_MIME.has(mimeType) || bytes.length < 1 || bytes.length > MAX_UPLOAD_BYTES) {
+      throw new BadRequestException('Document must be a PDF, JPEG, or PNG no larger than 10 MB.');
+    }
+    if (!this.magicMatches(mimeType, bytes)) {
+      throw new BadRequestException('Uploaded file content does not match its declared document type.');
+    }
+    await this.scanWithClamAv(bytes);
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    await this.s3.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: storageKey,
+      Body: bytes,
+      ContentLength: bytes.length,
+      ContentType: mimeType
+    }));
+    return { sha256 };
+  }
+
   makeStorageKey(propertyId: string): string {
     return `properties/${propertyId}/${randomUUID()}`;
   }
@@ -78,20 +97,34 @@ export class StorageService implements OnModuleInit {
     await new Promise<void>((resolve, reject) => {
       const socket = new Socket();
       const response: Buffer[] = [];
-      const timeout = setTimeout(() => socket.destroy(new Error('ClamAV scan timed out.')), 20_000);
-      socket.once('error', (error) => {
+      let responseLength = 0;
+      let settled = false;
+      const timeout = setTimeout(() => finish(new ServiceUnavailableException('ClamAV scan timed out.')), 20_000);
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
-        reject(new Error('ClamAV is unavailable; document scan could not be completed.', { cause: error }));
-      });
-      socket.once('data', (chunk: Buffer) => {
+        socket.destroy();
+        if (error) {
+          reject(error);
+          return;
+        }
+        const message = Buffer.concat(response).toString('utf8').replace(/\0/g, '').trim();
+        if (/\bOK\b/.test(message)) resolve();
+        else if (/\bFOUND\b/.test(message)) reject(new BadRequestException('ClamAV detected malware in the uploaded document.'));
+        else reject(new ServiceUnavailableException(`ClamAV returned an unexpected scan result: ${message || 'empty response'}`));
+      };
+      socket.once('error', (error) => finish(new ServiceUnavailableException('ClamAV is unavailable; document scan could not be completed.', { cause: error })));
+      socket.on('data', (chunk: Buffer) => {
         response.push(chunk);
-        const message = Buffer.concat(response).toString('utf8');
-        clearTimeout(timeout);
-        socket.end();
-        if (message.includes('OK')) resolve();
-        else if (message.includes('FOUND')) reject(new Error('ClamAV detected malware in the uploaded document.'));
-        else reject(new Error(`ClamAV returned an unexpected scan result: ${message.trim()}`));
+        responseLength += chunk.length;
+        if (responseLength > 4096) {
+          finish(new ServiceUnavailableException('ClamAV returned an oversized scan response.'));
+        } else if (chunk.includes(0) || chunk.includes(10)) {
+          finish();
+        }
       });
+      socket.once('end', () => finish());
       socket.connect(Number(process.env.CLAMAV_PORT ?? 3310), process.env.CLAMAV_HOST!, () => {
         socket.write(Buffer.from('zINSTREAM\0'));
         const length = Buffer.alloc(4);

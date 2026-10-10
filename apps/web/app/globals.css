@@ -23,6 +23,21 @@ a { color: inherit; text-decoration: none; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #8eb1ff; outline-offset: 2px; }
 
 .app-shell { min-height: 100vh; }
+.auth-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 30px 16px; }
+.auth-brand { margin-bottom: 4px; }
+.auth-card { width: min(100%, 500px); padding: 26px; }
+.auth-heading { display: flex; align-items: center; gap: 12px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid #edf0f4; }
+.auth-heading h1 { margin: 0; color: var(--ink); font-size: 20px; }
+.auth-heading p { margin: 5px 0 0; color: #828c9b; font-size: 12px; line-height: 1.5; }
+.auth-form { display: grid; gap: 15px; }
+.auth-form .form-field { font-size: 12px; }
+.auth-form .form-field input:not([type="checkbox"]), .auth-form .form-field select { height: 42px; font-size: 13px; }
+.auth-form .terms-check { font-size: 11px; }
+.auth-submit { width: 100%; min-height: 42px; justify-content: center; }
+.auth-switch { margin: 0; color: #687386; font-size: 11px; text-align: center; }
+.auth-switch a { color: #315fc0; font-weight: 650; }
+.auth-region { margin: 0; color: #8993a3; font-size: 10px; }
+.mfa-secret { padding: 12px; margin: 0; border: 1px solid #dfe4eb; border-radius: 6px; background: #f8f9fb; color: #263654; font-family: ui-monospace, monospace; font-size: 14px; letter-spacing: .08em; text-align: center; overflow-wrap: anywhere; }
 .topbar { height: 72px; background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 34px; position: sticky; top: 0; z-index: 10; }
 .brand { display: flex; align-items: center; gap: 11px; color: var(--ink); font-weight: 760; font-size: 21px; letter-spacing: -.55px; }
 .brand-mark { height: 35px; width: 35px; border-radius: 10px; background: var(--blue); color: white; display: grid; place-items: center; }
@@ -260,6 +275,7 @@ td { padding: 11px 13px; border-top: 1px solid #eef0f4; color: #697386; font-siz
   .map-illustration { height: 220px; }
 }
 @media (max-width: 700px) {
+  .auth-card { padding: 18px; }
   .topbar { height: 59px; padding: 0 14px; }.brand { font-size: 17px; gap: 8px; }.brand-mark { width: 31px; height: 31px; }.region-pill { display: none; }.topbar-actions { gap: 9px; }.search-box { width: 36px; padding: 0 9px; border: 0; background: transparent; }.search-box input, .search-box kbd, .role-select > select, .role-select > svg { display: none; }.role-select { gap: 0; }.avatar { width: 31px; height: 31px; }.notification-button { width: 30px; }
   .agent-register-link { font-size: 9px; }
   .agent-heading-actions { flex-wrap: wrap; justify-content: flex-start; }

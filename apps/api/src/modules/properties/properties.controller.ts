@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Ip, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Ip, Param, ParseUUIDPipe, Patch, PayloadTooLargeException, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AreaUnit, Intent, OwnershipType, PropertyType, Role } from '@prisma/client';
 import { z } from 'zod';
@@ -27,6 +27,8 @@ const documentSchema = z.object({
 });
 const pageSchema = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) });
 const updateSchema = createSchema.partial().refine((value) => Object.keys(value).length > 0);
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const ALLOWED_DOCUMENT_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 
 @ApiTags('masters', 'properties')
 @Controller()
@@ -81,11 +83,33 @@ export class PropertiesController {
     return this.properties.update(id, body, user.sub, user.role, ip, request.headers['user-agent']);
   }
 
-  @Post('properties/:id/documents/presign')
+  @Post('properties/:id/documents')
   @Roles(Role.NRI, Role.ADMIN)
   @ApiBearerAuth()
-  presign(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthUser, @Body(new ZodPipe(documentSchema)) body: z.infer<typeof documentSchema>) {
+  createDocument(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: AuthUser, @Body(new ZodPipe(documentSchema)) body: z.infer<typeof documentSchema>) {
     return this.properties.createDocumentUpload(id, user.sub, user.role, body);
+  }
+
+  @Put('properties/:id/documents/:docId/upload')
+  @Roles(Role.NRI, Role.ADMIN)
+  @ApiBearerAuth()
+  async uploadDocument(@Param('id', new ParseUUIDPipe()) id: string, @Param('docId', new ParseUUIDPipe()) documentId: string, @CurrentUser() user: AuthUser, @Req() request: Request, @Ip() ip: string) {
+    const mimeType = request.headers['content-type']?.split(';', 1)[0]?.trim() ?? '';
+    if (!ALLOWED_DOCUMENT_TYPES.has(mimeType)) throw new BadRequestException({ code: 'DOCUMENT_TYPE_INVALID', message: 'Upload a PDF, JPEG, or PNG document.' });
+    const declaredSize = Number(request.headers['content-length']);
+    if (Number.isFinite(declaredSize) && declaredSize > MAX_DOCUMENT_BYTES) throw new PayloadTooLargeException('Documents must be no larger than 10 MB.');
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of request) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += buffer.length;
+      if (size > MAX_DOCUMENT_BYTES) throw new PayloadTooLargeException('Documents must be no larger than 10 MB.');
+      chunks.push(buffer);
+    }
+    if (Number.isFinite(declaredSize) && declaredSize !== size) {
+      throw new BadRequestException({ code: 'DOCUMENT_SIZE_MISMATCH', message: 'The uploaded document size does not match its content length.' });
+    }
+    return this.properties.uploadDocument(id, documentId, user.sub, user.role, mimeType, Buffer.concat(chunks), ip, request.headers['user-agent']);
   }
 
   @Post('properties/:id/documents/:docId/complete')

@@ -17,17 +17,17 @@ LandTrack is a pnpm monorepo for the Hyderabad, Telangana property-registration 
 5. Start the web and API apps with `corepack pnpm dev`.
 6. Visit `http://localhost:3000`. The API health endpoint is `http://localhost:4000/api/v1/health`; non-production OpenAPI docs are at `http://localhost:4000/api/docs`.
 
-## Web preview
+## API-backed web journey
 
-The web application currently remains a local-storage UI preview with illustrative sample data. It is not yet wired to the API and must not be used as the live user portal.
+The Next.js portal uses the API for NRI and agent registration, OTP verification, sign-in, role-aware dashboards, property registration, document uploads, payment history, appointment booking, and administrator agent/property review. It sends API traffic through the same-origin `/api/v1` path; set `API_URL` to the API's server-reachable URL when the web app is deployed. Property documents are uploaded through the authenticated API, checked against their declared type and size, scanned by ClamAV, and only then stored in the private object bucket.
 
-The API includes PostgreSQL/Prisma persistence, OTP/password authentication with rotating refresh tokens and TOTP setup, role/ownership guards, property and document APIs with S3-compatible uploads and ClamAV scanning, payment records/webhook handling, appointment and call workflows, persisted notifications, chat/Socket.IO, admin endpoints, audit views, and audit records. The local Compose stack supplies PostgreSQL, Redis, MinIO, MailHog, and ClamAV. Local fake payment/SMS/WhatsApp adapters are development-only.
+The API provides PostgreSQL/Prisma persistence, rotating refresh tokens and TOTP setup, role/ownership guards, payment records/webhooks, appointment and call workflows, persisted notifications, chat/Socket.IO, admin endpoints, and audit records. The local Compose stack supplies PostgreSQL, Redis, MinIO, MailHog, and ClamAV. Local fake payment/SMS/WhatsApp adapters are development-only.
 
-This is an integration baseline, not a production-ready service. Before real users, documents, calls, or payments are handled, connect and exercise the web app against the API; configure and verify production SMS, WhatsApp, hosted-checkout, Jitsi/TURN/recording, object storage, email, and monitoring providers; import authoritative Hyderabad location masters; add automated security and API/E2E tests; and complete legal, privacy, retention, operational, and deployment reviews. Production startup rejects fake communication/payment providers, but that check does not substitute for the integration and operational work.
+This is an integration baseline, not a production-ready service. Run the complete journey against the local Compose dependencies before staging. Some portal areas (including chat/calls, notifications, auditor review, and several admin workspaces) still need full UI integration and end-to-end verification. For staging and production, use provider-managed secrets and configure real SMS/WhatsApp, hosted-checkout test/live credentials, object storage, email, Jitsi/TURN/recording, and monitoring; import authoritative Hyderabad location masters; add automated API/E2E and security tests; and complete legal, privacy, retention, operational, backup, and deployment reviews. Do not use fake adapters or real user documents/payment data until the relevant provider flows and controls have been verified.
 
 ## Monorepo layout
 
-- `apps/web` — Next.js App Router UI preview (API integration pending)
+- `apps/web` — Next.js App Router portal
 - `apps/api` — NestJS API
 - `packages/shared` — shared TypeScript contracts
 - `infra` — local service containers

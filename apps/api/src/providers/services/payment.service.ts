@@ -28,6 +28,8 @@ export class PaymentService {
         accept_partial: false,
         reminder_enable: false,
         notify: { sms: false, email: false },
+        callback_url: `${process.env.APP_URL}/app/payments`,
+        callback_method: 'get',
         expire_by: Math.floor(Date.now() / 1000) + 24 * 60 * 60
       })
     });

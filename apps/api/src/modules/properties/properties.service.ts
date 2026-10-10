@@ -113,11 +113,10 @@ export class PropertiesService {
       throw new BadRequestException({ code: 'PROPERTY_LOCKED', message: 'Documents can only be uploaded for a draft or rejected property.' });
     }
     const storageKey = this.storage.makeStorageKey(propertyId);
-    const uploadUrl = await this.storage.createUpload(storageKey, input.mimeType, input.sizeBytes);
     const document = await this.prisma.document.create({
       data: { propertyId, storageKey, kind: input.kind, mimeType: input.mimeType, sizeBytes: input.sizeBytes, uploadedById: ownerId }
     });
-    return { documentId: document.id, uploadUrl, expiresInSeconds: 240 };
+    return { documentId: document.id };
   }
 
   async completeDocument(propertyId: string, documentId: string, userId: string, role: Role, ip?: string, userAgent?: string) {
@@ -126,6 +125,32 @@ export class PropertiesService {
     if (!document) throw new NotFoundException({ code: 'DOCUMENT_NOT_FOUND', message: 'Document was not found.' });
     if (document.scanStatus === 'CLEAN') return { id: document.id, scanStatus: 'CLEAN' };
     const { sha256 } = await this.storage.scanObject(document.storageKey, document.mimeType, document.sizeBytes);
+    const updated = await this.prisma.document.update({ where: { id: documentId }, data: { sha256, scanStatus: 'CLEAN' } });
+    await this.audit.record({ actorId: userId, actorRole: role, action: 'DOCUMENT_SCANNED', entity: 'Document', entityId: documentId, after: { scanStatus: updated.scanStatus }, ip, userAgent });
+    return { id: updated.id, scanStatus: updated.scanStatus };
+  }
+
+  async uploadDocument(propertyId: string, documentId: string, userId: string, role: Role, mimeType: string, bytes: Buffer, ip?: string, userAgent?: string) {
+    const property = await this.ownedProperty(propertyId, userId, role);
+    if (property.status !== PropertyStatus.DRAFT && property.status !== PropertyStatus.REJECTED) {
+      throw new BadRequestException({ code: 'PROPERTY_LOCKED', message: 'Documents can only be uploaded for a draft or rejected property.' });
+    }
+    const document = await this.prisma.document.findFirst({ where: { id: documentId, propertyId, uploadedById: role === Role.ADMIN ? undefined : userId } });
+    if (!document) throw new NotFoundException({ code: 'DOCUMENT_NOT_FOUND', message: 'Document was not found.' });
+    if (document.scanStatus === 'CLEAN') return { id: document.id, scanStatus: 'CLEAN' };
+    if (mimeType !== document.mimeType || bytes.length !== document.sizeBytes) {
+      throw new BadRequestException({ code: 'DOCUMENT_METADATA_MISMATCH', message: 'Uploaded document metadata does not match the upload request.' });
+    }
+    let sha256: string;
+    try {
+      ({ sha256 } = await this.storage.scanAndStore(document.storageKey, mimeType, bytes));
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        await this.prisma.document.update({ where: { id: documentId }, data: { scanStatus: 'REJECTED' } });
+        await this.audit.record({ actorId: userId, actorRole: role, action: 'DOCUMENT_REJECTED', entity: 'Document', entityId: documentId, after: { scanStatus: 'REJECTED' }, ip, userAgent });
+      }
+      throw error;
+    }
     const updated = await this.prisma.document.update({ where: { id: documentId }, data: { sha256, scanStatus: 'CLEAN' } });
     await this.audit.record({ actorId: userId, actorRole: role, action: 'DOCUMENT_SCANNED', entity: 'Document', entityId: documentId, after: { scanStatus: updated.scanStatus }, ip, userAgent });
     return { id: updated.id, scanStatus: updated.scanStatus };

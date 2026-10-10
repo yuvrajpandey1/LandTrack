@@ -4,13 +4,20 @@ import {
   Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, Building2, CalendarDays,
   Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, FileText,
   Filter, Home, LandPlot, LayoutDashboard, MapPin, MessageCircle, MoreHorizontal,
-  Plus, Search, ShieldCheck, SlidersHorizontal, UserPlus, Users, Wallet, X
+  LogOut, Plus, Search, ShieldCheck, SlidersHorizontal, UserPlus, Users, Wallet, X
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { AgentRegistrationPage, LoginPage, NriRegistrationPage } from '../auth-pages';
+import { AppointmentBooking } from '../appointment-booking';
+import { PaymentHistory } from '../payment-history';
+import { PropertyRegistration } from '../property-registration';
+import { useSession, type AccountRole } from '../session-provider';
 
 type Role = 'Admin' | 'Auditor' | 'Agent' | 'NRI';
+const roleByAccount: Record<AccountRole, Role> = { ADMIN: 'Admin', AUDITOR: 'Auditor', AGENT: 'Agent', NRI: 'NRI' };
+const homeByRole: Record<Role, string> = { Admin: '/admin', Auditor: '/audit', Agent: '/agent', NRI: '/app' };
 type PropertyStatus = 'Under review' | 'Approved' | 'Rejected' | 'Payment pending' | 'Draft';
 type Property = {
   id: string;
@@ -39,19 +46,81 @@ type Agent = {
   submitted: string;
 };
 
-const initialProperties: Property[] = [
-  { id: 'LT-10284', name: 'Lakeview Parcel 12', location: 'Serilingampally, Hyderabad', district: 'Hyderabad', area: 2.4, unit: 'acres', owner: 'R. Cooper', status: 'Under review', submitted: 'Oct 07, 2026' },
-  { id: 'LT-10283', name: 'Green Valley Plot', location: 'Shamshabad, Rangareddy', district: 'Rangareddy', area: 1.8, unit: 'acres', owner: 'M. Nguyen', status: 'Approved', submitted: 'Oct 06, 2026' },
-  { id: 'LT-10282', name: 'Highland Meadows', location: 'Kompally, Medchal-Malkajgiri', district: 'Medchal-Malkajgiri', area: 3.1, unit: 'acres', owner: 'D. Brown', status: 'Rejected', submitted: 'Oct 06, 2026' },
-  { id: 'LT-10281', name: 'East Valley Plot', location: 'Gachibowli, Hyderabad', district: 'Hyderabad', area: 4, unit: 'acres', owner: 'L. Fernandez', status: 'Payment pending', submitted: 'Oct 05, 2026' }
-];
+type ApiProperty = {
+  id: string;
+  name: string;
+  surveyNumber: string;
+  type: string;
+  area: string | number;
+  areaUnit: string;
+  ownership: string;
+  status: string;
+  createdAt: string;
+  submittedAt?: string | null;
+  district?: { name: string };
+  taluka?: { name: string };
+  village?: { name: string };
+  owner?: { name: string };
+};
+
+type ApiAgent = {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  createdAt: string;
+  status: string;
+  agentProfile?: {
+    approval: string;
+    experienceYears: number | null;
+    languages: string[];
+    areasCovered: string[];
+  } | null;
+};
+
+function toProperty(value: ApiProperty): Property {
+  const statuses: Record<string, PropertyStatus> = {
+    DRAFT: 'Draft',
+    PAYMENT_PENDING: 'Payment pending',
+    SUBMITTED: 'Under review',
+    UNDER_REVIEW: 'Under review',
+    APPROVED: 'Approved',
+    REJECTED: 'Rejected'
+  };
+  const units: Record<string, string> = { ACRE: 'acres', GUNTA: 'guntas', SQ_YARD: 'sq. yards', SQ_FT: 'sq. ft.', SQ_METER: 'sq. meters' };
+  const location = [value.village?.name, value.district?.name].filter(Boolean).join(', ');
+  return {
+    id: value.id,
+    name: value.name,
+    location: location || 'Hyderabad, Telangana',
+    district: value.district?.name ?? 'Hyderabad',
+    area: Number(value.area),
+    unit: units[value.areaUnit] ?? value.areaUnit,
+    owner: value.owner?.name ?? 'Account owner',
+    status: statuses[value.status] ?? 'Draft',
+    submitted: new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(new Date(value.submittedAt ?? value.createdAt)),
+    propertyType: value.type,
+    surveyNumber: value.surveyNumber,
+    ownership: value.ownership
+  };
+}
+
+function toAgent(value: ApiAgent, districtNames: Map<string, string>): Agent {
+  const approval = value.agentProfile?.approval ?? 'PENDING';
+  return {
+    id: value.id,
+    name: value.name,
+    email: value.email,
+    mobile: value.mobile,
+    experienceYears: value.agentProfile?.experienceYears ?? 0,
+    languages: value.agentProfile?.languages ?? [],
+    districts: (value.agentProfile?.areasCovered ?? []).map((id) => districtNames.get(id) ?? id),
+    status: approval === 'APPROVED' ? 'Approved' : approval === 'REJECTED' ? 'Rejected' : 'Pending approval',
+    submitted: new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(new Date(value.createdAt))
+  };
+}
 
 const districts = ['Hyderabad', 'Medchal-Malkajgiri', 'Rangareddy'];
-const initialAgents: Agent[] = [
-  { id: 'AG-1001', name: 'Aarav Reddy', email: 'aarav@example.com', mobile: '+919876543210', experienceYears: 8, languages: ['English', 'Telugu'], districts: ['Hyderabad', 'Rangareddy'], status: 'Approved', submitted: 'Sep 28, 2026' },
-  { id: 'AG-1002', name: 'Mira Sharma', email: 'mira@example.com', mobile: '+919876543211', experienceYears: 5, languages: ['English', 'Hindi', 'Telugu'], districts: ['Hyderabad'], status: 'Pending approval', submitted: 'Oct 08, 2026' },
-  { id: 'AG-1003', name: 'Kiran Kumar', email: 'kiran@example.com', mobile: '+919876543212', experienceYears: 11, languages: ['Telugu', 'Hindi'], districts: ['Medchal-Malkajgiri'], status: 'Approved', submitted: 'Oct 02, 2026' }
-];
 
 const adminNavigation = [
   { label: 'Overview', href: '/admin', icon: LayoutDashboard },
@@ -75,8 +144,7 @@ const navigationByRole: Record<Role, typeof adminNavigation> = {
   ],
   Agent: [
     { label: 'My overview', href: '/agent', icon: LayoutDashboard },
-      { label: 'Agent registration', href: '/agent/register', icon: UserPlus },
-      { label: 'Appointments', href: '/agent/appointments', icon: CalendarDays },
+    { label: 'Appointments', href: '/agent/appointments', icon: CalendarDays },
     { label: 'Chat', href: '/agent/chat', icon: MessageCircle },
     { label: 'Profile', href: '/agent/profile', icon: Users }
   ],
@@ -98,79 +166,7 @@ const statusClasses: Record<PropertyStatus, string> = {
   Draft: 'status-gray'
 };
 
-function useDemoProperties() {
-  const [properties, setProperties] = useState(initialProperties);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem('landtrack-demo-properties');
-    if (!saved) return;
-    try {
-      const parsed: unknown = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.every(isProperty)) setProperties(parsed);
-    } catch (error) {
-      console.error('Unable to load saved demo properties.', error);
-    }
-  }, []);
-
-  const save = (next: Property[]) => {
-    setProperties(next);
-    window.localStorage.setItem('landtrack-demo-properties', JSON.stringify(next));
-  };
-
-  return { properties, save };
-}
-
-function useDemoAgents() {
-  const [agents, setAgents] = useState(initialAgents);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem('landtrack-demo-agents');
-    if (!saved) return;
-    try {
-      const parsed: unknown = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.every(isAgent)) setAgents(parsed);
-    } catch (error) {
-      console.error('Unable to load saved demo agent records.', error);
-    }
-  }, []);
-
-  const save = (next: Agent[]) => {
-    setAgents(next);
-    window.localStorage.setItem('landtrack-demo-agents', JSON.stringify(next));
-  };
-
-  return { agents, save };
-}
-
-function isAgent(value: unknown): value is Agent {
-  if (!value || typeof value !== 'object') return false;
-  const record = value as Record<string, unknown>;
-  return typeof record.id === 'string'
-    && typeof record.name === 'string'
-    && typeof record.email === 'string'
-    && typeof record.mobile === 'string'
-    && typeof record.experienceYears === 'number'
-    && Array.isArray(record.languages) && record.languages.every((language) => typeof language === 'string')
-    && Array.isArray(record.districts) && record.districts.every((district) => typeof district === 'string')
-    && (record.status === 'Pending approval' || record.status === 'Approved' || record.status === 'Rejected')
-    && typeof record.submitted === 'string';
-}
-
-function isProperty(value: unknown): value is Property {
-  if (!value || typeof value !== 'object') return false;
-  const record = value as Record<string, unknown>;
-  return typeof record.id === 'string'
-    && typeof record.name === 'string'
-    && typeof record.location === 'string'
-    && typeof record.district === 'string'
-    && typeof record.area === 'number'
-    && typeof record.unit === 'string'
-    && typeof record.owner === 'string'
-    && (record.status === 'Under review' || record.status === 'Approved' || record.status === 'Rejected' || record.status === 'Payment pending' || record.status === 'Draft')
-    && typeof record.submitted === 'string';
-}
-
-function Header({ role, setRole }: { role: Role; setRole: (role: Role) => void }) {
+function Header({ role, name, onSignOut }: { role: Role; name: string; onSignOut: () => void }) {
   return (
     <header className="topbar">
       <Link href="/" className="brand" aria-label="LandTrack home">
@@ -188,16 +184,8 @@ function Header({ role, setRole }: { role: Role; setRole: (role: Role) => void }
         <button className="icon-button notification-button" aria-label="Notifications">
           <Bell size={19} /><span className="notification-dot" />
         </button>
-        <label className="role-select">
-          <span className="avatar">JD</span>
-          <select aria-label="Preview role" value={role} onChange={(event) => setRole(event.target.value as Role)}>
-            <option value="Admin">Super Admin</option>
-            <option value="Auditor">Auditor</option>
-            <option value="Agent">Agent</option>
-            <option value="NRI">NRI account</option>
-          </select>
-          <ChevronDown size={14} />
-        </label>
+        <span className="role-select"><span className="avatar">{name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()}</span><span>{name}</span></span>
+        <button className="icon-button" aria-label="Sign out" title="Sign out" onClick={onSignOut}><LogOut size={17} /></button>
       </div>
     </header>
   );
@@ -258,13 +246,23 @@ function StatCard({ title, value, change, icon: Icon, tone = 'blue' }: { title: 
   );
 }
 
-function PropertyTable({ properties, audit = false, onStatusChange }: { properties: Property[]; audit?: boolean; onStatusChange?: (id: string, status: PropertyStatus) => void }) {
+function PropertyTable({ properties, audit = false, onStatusChange }: { properties: Property[]; audit?: boolean; onStatusChange?: (id: string, status: PropertyStatus) => Promise<void> }) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('All statuses');
+  const [actionError, setActionError] = useState('');
   const filtered = useMemo(() => properties.filter((property) => {
     const matchesQuery = `${property.name} ${property.location} ${property.owner} ${property.id}`.toLowerCase().includes(query.toLowerCase());
     return matchesQuery && (status === 'All statuses' || property.status === status);
   }), [properties, query, status]);
+  const review = async (id: string) => {
+    if (!onStatusChange) return;
+    setActionError('');
+    try {
+      await onStatusChange(id, 'Approved');
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'The property review could not be saved.');
+    }
+  };
 
   return (
     <section className="card table-card">
@@ -275,6 +273,7 @@ function PropertyTable({ properties, audit = false, onStatusChange }: { properti
           <label className="filter-select"><Filter size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filter by status"><option>All statuses</option><option>Under review</option><option>Approved</option><option>Rejected</option><option>Payment pending</option><option>Draft</option></select></label>
         </div>
       </div>
+      {actionError && <p className="form-error" role="alert">{actionError}</p>}
       <div className="table-scroll">
         <table>
           <thead><tr><th>PROPERTY</th><th>LOCATION</th><th>AREA</th><th>OWNER</th><th>SUBMITTED</th><th>STATUS</th>{onStatusChange && <th>REVIEW</th>}</tr></thead>
@@ -287,7 +286,7 @@ function PropertyTable({ properties, audit = false, onStatusChange }: { properti
                 <td>{property.owner}</td>
                 <td>{property.submitted}</td>
                 <td><span className={`status-badge ${statusClasses[property.status]}`}><span />{property.status}</span></td>
-                {onStatusChange && <td>{property.status === 'Under review' ? <button className="text-action" onClick={() => onStatusChange(property.id, 'Approved')}>Review <ArrowRight size={14} /></button> : <span className="muted">—</span>}</td>}
+                {onStatusChange && <td>{property.status === 'Under review' ? <button className="text-action" onClick={() => { void review(property.id); }}>Approve <ArrowRight size={14} /></button> : <span className="muted">—</span>}</td>}
               </tr>
             ))}
             {filtered.length === 0 && <tr><td colSpan={onStatusChange ? 7 : 6} className="empty-cell">No properties match these filters.</td></tr>}
@@ -299,53 +298,35 @@ function PropertyTable({ properties, audit = false, onStatusChange }: { properti
   );
 }
 
-function AdminDashboard({ properties, save }: { properties: Property[]; save: (next: Property[]) => void }) {
+function AdminDashboard({ properties, activeAgents, onReview }: { properties: Property[]; activeAgents: number; onReview: (id: string, status: PropertyStatus) => Promise<void> }) {
   const pending = properties.filter((property) => property.status === 'Under review').length;
-  const setStatus = (id: string, nextStatus: PropertyStatus) => save(properties.map((property) => property.id === id ? { ...property, status: nextStatus } : property));
   return (
     <>
-      <PageHeading eyebrow="WEDNESDAY, OCTOBER 07, 2026" title="Dashboard overview" description="A clear view of property registrations and activity across Hyderabad." action={<Link className="button button-primary" href="/app/properties/new"><Plus size={18} />New property</Link>} />
-      <div className="sample-banner"><Activity size={16} /><span>Sample workspace data</span><span className="banner-separator">·</span><span>Actions are saved in this browser for preview</span></div>
+      <PageHeading eyebrow="ADMINISTRATION" title="Dashboard overview" description="A live view of property registrations and activity across Hyderabad." action={<Link className="button button-primary" href="/admin/properties"><Building2 size={18} />Review properties</Link>} />
       <section className="stats-grid">
-        <StatCard title="Registered properties" value={String(properties.length).padStart(2, '0')} change="+12% this month" icon={Building2} />
+        <StatCard title="Registered properties" value={String(properties.length).padStart(2, '0')} change="Current records" icon={Building2} />
         <StatCard title="Under review" value={String(pending).padStart(2, '0')} change={pending ? `${pending} need attention` : 'All caught up'} icon={ClipboardCheck} tone="amber" />
-        <StatCard title="Active agents" value="08" change="+2 this month" icon={Users} tone="purple" />
-        <StatCard title="Registration charge" value="₹500" change="One-time per property" icon={Wallet} tone="green" />
+        <StatCard title="Approved agents" value={String(activeAgents).padStart(2, '0')} change="Eligible for assignment" icon={Users} tone="purple" />
+        <StatCard title="Registration charge" value="₹500" change="Configured in settings" icon={Wallet} tone="green" />
       </section>
-      <section className="dashboard-grid">
-        <div className="card performance-card">
-          <div className="section-title-row"><div><h2>Registration activity</h2><p>Property submissions over the last 30 days</p></div><button className="select-button">Last 30 days <ChevronDown size={14} /></button></div>
-          <div className="chart-area" aria-label="Bar chart showing weekly property registrations">
-            <div className="chart-y"><span>16</span><span>12</span><span>8</span><span>4</span><span>0</span></div>
-            <div className="chart-plot">
-              {[['Week 1', 44, 30], ['Week 2', 68, 44], ['Week 3', 55, 35], ['Week 4', 82, 52], ['This week', 61, 43]].map(([label, value, prior]) => (
-                <div className="chart-column" key={String(label)}>
-                  <div className="bar-pair"><span className="bar current" style={{ height: `${value}%` }} /><span className="bar previous" style={{ height: `${prior}%` }} /></div><small>{label}</small>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="chart-legend"><span><i className="legend-dot blue-dot" />This month</span><span><i className="legend-dot gray-dot" />Previous month</span></div>
-        </div>
-        <div className="card map-card">
-          <div className="section-title-row"><div><h2>Property locations</h2><p>Coverage across the Hyderabad region</p></div><Link href="/admin/properties" className="icon-button" aria-label="View properties"><ArrowRight size={17} /></Link></div>
-          <div className="map-illustration">
-            <div className="map-road road-one" /><div className="map-road road-two" /><div className="map-road road-three" /><div className="map-road road-four" />
-            <span className="map-pin pin-one"><MapPin size={18} fill="currentColor" /></span><span className="map-pin pin-two"><MapPin size={18} fill="currentColor" /></span><span className="map-pin pin-three"><MapPin size={18} fill="currentColor" /></span><span className="map-pin pin-four"><MapPin size={18} fill="currentColor" /></span><span className="map-pin pin-five"><MapPin size={18} fill="currentColor" /></span>
-            <div className="map-label"><MapPin size={16} /><span><strong>Hyderabad, Telangana</strong><small>{properties.length} sample registered properties</small></span></div>
-          </div>
-          <div className="map-caption"><span><i className="legend-dot blue-dot" />Registered</span><span><i className="legend-dot amber-dot" />Under review</span></div>
-        </div>
-      </section>
-      <PropertyTable properties={properties} onStatusChange={setStatus} />
+      <PropertyTable properties={properties} onStatusChange={onReview} />
     </>
   );
 }
 
-function AgentDirectory({ agents, save }: { agents: Agent[]; save: (next: Agent[]) => void }) {
+function AgentDirectory({ agents, onReview }: { agents: Agent[]; onReview: (id: string, status: AgentStatus, reason?: string) => Promise<void> }) {
+  const [error, setError] = useState('');
   const pending = agents.filter((agent) => agent.status === 'Pending approval').length;
-  const updateStatus = (id: string, status: AgentStatus) => {
-    save(agents.map((agent) => agent.id === id ? { ...agent, status } : agent));
+  const updateStatus = async (id: string, status: AgentStatus) => {
+    setError('');
+    const enteredReason = status === 'Rejected' ? window.prompt('Enter a reason for rejecting this agent application:') : undefined;
+    if (status === 'Rejected' && !enteredReason?.trim()) return;
+    const reason = enteredReason ?? undefined;
+    try {
+      await onReview(id, status, reason);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'The agent review could not be saved.');
+    }
   };
 
   return (
@@ -356,7 +337,6 @@ function AgentDirectory({ agents, save }: { agents: Agent[]; save: (next: Agent[
         description="Create agent profiles, review applications, and manage service coverage."
         action={<div className="agent-heading-actions"><Link className="button button-secondary" href="/agent/register"><UserPlus size={16} />Agent registration</Link><Link className="button button-primary" href="/admin/agents/new"><Plus size={17} />Create new agent</Link></div>}
       />
-      <div className="sample-banner"><Activity size={16} /><span>Preview agent directory</span><span className="banner-separator">·</span><span>Changes are saved in this browser only</span></div>
       <section className="stats-grid agent-stats">
         <StatCard title="Total agents" value={String(agents.length).padStart(2, '0')} change="Registered profiles" icon={Users} />
         <StatCard title="Pending applications" value={String(pending).padStart(2, '0')} change={pending ? 'Awaiting admin review' : 'All applications reviewed'} icon={Clock3} tone="amber" />
@@ -366,8 +346,9 @@ function AgentDirectory({ agents, save }: { agents: Agent[]; save: (next: Agent[
       <section className="card agent-directory-card">
         <div className="table-toolbar">
           <div><h2>Agent applications and profiles</h2><p>{agents.length} agent profiles</p></div>
-          <span className="agent-preview-tag">Preview data</span>
+          <span className="muted">Live records</span>
         </div>
+        {error && <p className="form-error" role="alert">{error}</p>}
         <div className="table-scroll">
           <table className="agent-table">
             <thead><tr><th>AGENT</th><th>CONTACT</th><th>EXPERIENCE</th><th>LANGUAGES</th><th>SERVICE AREA</th><th>STATUS</th><th>REVIEW</th></tr></thead>
@@ -666,19 +647,20 @@ function AuditDetail({ property }: { property: Property | undefined }) {
   );
 }
 
-function SectionPage({ pathname, properties, save, agents, saveAgents }: {
+function SectionPage({ pathname, properties, agents, activeAgents, onReviewProperty, onReviewAgent }: {
   pathname: string;
   properties: Property[];
-  save: (next: Property[]) => void;
   agents: Agent[];
-  saveAgents: (next: Agent[]) => void;
+  activeAgents: number;
+  onReviewProperty: (id: string, status: PropertyStatus) => Promise<void>;
+  onReviewAgent: (id: string, status: AgentStatus, reason?: string) => Promise<void>;
 }) {
-  if (pathname === '/admin') return <AdminDashboard properties={properties} save={save} />;
-  if (pathname === '/admin/agents') return <AgentDirectory agents={agents} save={saveAgents} />;
-  if (pathname === '/admin/agents/new') return <><PageHeading eyebrow="AGENT MANAGEMENT" title="Create new agent" description="Add an agent profile to the Hyderabad directory. New profiles require approval before appointment assignment." /><AgentForm mode="admin" onCreate={(agent) => saveAgents([agent, ...agents])} /></>;
-  if (pathname === '/agent/register') return <><PageHeading eyebrow="JOIN LANDTRACK" title="Agent registration" description="Register your profile to help NRI property owners across Hyderabad." /><AgentForm mode="registration" onCreate={(agent) => saveAgents([agent, ...agents])} /></>;
-  if (pathname === '/app/properties/new') return <><PageHeading eyebrow="MY PROPERTIES" title="Register a property" description="Add your Hyderabad land or property in a few guided steps." /><RegistrationWizard onCreate={(property) => save([property, ...properties])} onPayment={(id) => save(properties.map((property) => property.id === id ? { ...property, status: 'Under review' } : property))} /></>;
-  if (pathname === '/app/appointments/new') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select a convenient date and time to speak with your Hyderabad agent." /><AppointmentScreen /></>;
+  if (pathname === '/admin') return <AdminDashboard properties={properties} activeAgents={activeAgents} onReview={onReviewProperty} />;
+  if (pathname === '/admin/agents') return <AgentDirectory agents={agents} onReview={onReviewAgent} />;
+  if (pathname === '/admin/agents/new') return <><PageHeading eyebrow="AGENT MANAGEMENT" title="Invite an agent" description="Agent profiles are created by verified applicants and become assignable after admin approval." /><div className="card empty-state"><Users size={28} /><h2>Share the agent application</h2><p>Ask the agent to create an account, verify their mobile number, and submit their service areas. Their verified application will appear here for approval.</p><Link href="/agent/register" className="button button-primary">Open agent registration<ArrowRight size={16} /></Link></div></>;
+  if (pathname === '/app/properties/new') return <><PageHeading eyebrow="MY PROPERTIES" title="Register a property" description="Add your Hyderabad land or property in a few guided steps." /><PropertyRegistration /></>;
+  if (pathname === '/app/appointments/new') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select a convenient date and time to speak with your Hyderabad agent." /><AppointmentBooking /></>;
+  if (pathname === '/app/payments') return <><PageHeading eyebrow="PAYMENT HISTORY" title="Payments" description="Track registration charges and provider-confirmed receipts." /><PaymentHistory /></>;
   if (pathname.startsWith('/audit/properties/')) {
     const id = pathname.split('/').at(-1);
     return <AuditDetail property={properties.find((property) => property.id === id)} />;
@@ -686,12 +668,24 @@ function SectionPage({ pathname, properties, save, agents, saveAgents }: {
   if (pathname === '/audit') return <><PageHeading eyebrow="READ-ONLY AUDIT" title="Audit overview" description="Independent visibility into property registrations, payments, and communications." /><div className="stats-grid"><StatCard title="Total properties" value={String(properties.length).padStart(2, '0')} change="Sample records" icon={Building2} /><StatCard title="Submitted" value={String(properties.filter((item) => item.status === 'Under review').length).padStart(2, '0')} change="Awaiting review" icon={ClipboardCheck} tone="amber" /><StatCard title="Approved" value={String(properties.filter((item) => item.status === 'Approved').length).padStart(2, '0')} change="Reviewed records" icon={ShieldCheck} tone="green" /><StatCard title="Payment records" value="—" change="Not connected in preview" icon={Wallet} tone="purple" /></div><PropertyTable properties={properties} audit /></>;
   if (pathname === '/audit/properties') return <><PageHeading eyebrow="AUDIT REGISTER" title="Property register" description="Search and filter the complete Hyderabad property register." action={<button className="button button-secondary"><Filter size={16} />Filters</button>} /><PropertyTable properties={properties} audit /></>;
   if (pathname === '/admin/properties') {
-    const setStatus = (id: string, nextStatus: PropertyStatus) => save(properties.map((property) => property.id === id ? { ...property, status: nextStatus } : property));
-    return <><PageHeading eyebrow="PROPERTY REVIEW" title="Property submissions" description="Review property registrations and update their status." /><PropertyTable properties={properties} onStatusChange={setStatus} /></>;
+    return <><PageHeading eyebrow="PROPERTY REVIEW" title="Property submissions" description="Review property registrations and update their status." /><PropertyTable properties={properties} onStatusChange={onReviewProperty} /></>;
   }
   if (pathname === '/app' || pathname === '/agent') {
     const isAgent = pathname === '/agent';
-    return <><PageHeading eyebrow={isAgent ? 'AGENT WORKSPACE' : 'MY LANDTRACK'} title={isAgent ? 'Welcome to your workspace' : 'Welcome back'} description={isAgent ? 'Your assigned appointments and conversations in one place.' : 'Keep track of your properties and connect with your local agent.'} action={!isAgent && <Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Add property</Link>} /><div className="stats-grid"><StatCard title={isAgent ? 'Assigned appointments' : 'My properties'} value={isAgent ? '02' : String(properties.filter((item) => item.owner === 'You').length).padStart(2, '0')} change={isAgent ? '1 needs confirmation' : 'In your portfolio'} icon={Building2} /><StatCard title="Upcoming appointments" value="01" change="Next: Oct 12, 10:30 AM" icon={CalendarDays} tone="amber" /><StatCard title="Unread messages" value="02" change="From your agent" icon={MessageCircle} tone="purple" /><StatCard title="Payments" value="₹500" change="Registration charge" icon={Wallet} tone="green" /></div><div className="dashboard-grid"><div className="card quick-card"><h2>Quick actions</h2><div className="quick-actions"><Link href="/app/properties/new"><Plus size={17} /><span><strong>Register a property</strong><small>Add land details and documents</small></span><ArrowRight size={16} /></Link><Link href="/app/appointments/new"><CalendarDays size={17} /><span><strong>Book an appointment</strong><small>Choose a slot with an agent</small></span><ArrowRight size={16} /></Link><Link href={isAgent ? '/agent/chat' : '/app/chat'}><MessageCircle size={17} /><span><strong>Open messages</strong><small>Continue a conversation</small></span><ArrowRight size={16} /></Link></div></div><div className="card next-appointment"><span className="eyebrow">NEXT APPOINTMENT</span><h2>Property consultation</h2><p>Green Valley Plot · Video call</p><div className="appointment-date"><CalendarDays size={18} /><span>Monday, October 12, 2026</span></div><div className="appointment-date"><Clock3 size={18} /><span>10:30 AM India Standard Time</span></div><Link href="/app/appointments/new" className="text-action">View appointment <ArrowRight size={15} /></Link></div></div><PropertyTable properties={properties.filter((item) => isAgent || item.owner === 'You')} /></>;
+    const approved = properties.filter((property) => property.status === 'Approved').length;
+    const underReview = properties.filter((property) => property.status === 'Under review').length;
+    return (
+      <>
+        <PageHeading eyebrow={isAgent ? 'AGENT WORKSPACE' : 'MY LANDTRACK'} title={isAgent ? 'Welcome to your workspace' : 'Welcome back'} description={isAgent ? 'Your assigned properties and customer requests.' : 'Track your property registrations and connect with your local agent.'} action={!isAgent && <Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Add property</Link>} />
+        <section className="stats-grid">
+          <StatCard title={isAgent ? 'Assigned properties' : 'My properties'} value={String(properties.length).padStart(2, '0')} change="Current records" icon={Building2} />
+          <StatCard title="Approved properties" value={String(approved).padStart(2, '0')} change="Ready for appointments" icon={CheckCircle2} tone="green" />
+          <StatCard title="Under review" value={String(underReview).padStart(2, '0')} change="Registration status" icon={ClipboardCheck} tone="amber" />
+        </section>
+        {!isAgent && <div className="dashboard-grid"><div className="card quick-card"><h2>Quick actions</h2><div className="quick-actions"><Link href="/app/properties/new"><Plus size={17} /><span><strong>Register a property</strong><small>Add land details and securely upload documents</small></span><ArrowRight size={16} /></Link><Link href="/app/appointments/new"><CalendarDays size={17} /><span><strong>Book an appointment</strong><small>Choose an available slot for an approved property</small></span><ArrowRight size={16} /></Link><Link href="/app/payments"><Wallet size={17} /><span><strong>View payments</strong><small>Check provider-confirmed payment status</small></span><ArrowRight size={16} /></Link></div></div><div className="card next-appointment"><span className="eyebrow">PROPERTY SUPPORT</span><h2>Need help?</h2><p>Register your property first. Appointment booking becomes available after approval.</p><Link href="/app/appointments/new" className="text-action">Check appointment availability <ArrowRight size={15} /></Link></div></div>}
+        <PropertyTable properties={properties} />
+      </>
+    );
   }
   if (pathname.includes('properties')) return <><PageHeading eyebrow="PROPERTY REGISTER" title={pathname.startsWith('/audit') ? 'Property register' : 'My properties'} description="Review status and details for registered Hyderabad properties." action={!pathname.startsWith('/audit') && <Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Register property</Link>} /><PropertyTable properties={pathname.startsWith('/audit') ? properties : properties.filter((item) => item.owner === 'You')} audit={pathname.startsWith('/audit')} /></>;
   const title = pathname.split('/').filter(Boolean).at(-1)?.replaceAll('-', ' ') ?? 'LandTrack';
@@ -715,33 +709,120 @@ function SectionPage({ pathname, properties, save, agents, saveAgents }: {
 
 export default function LandTrackPage() {
   const pathname = usePathname();
-  const { properties, save } = useDemoProperties();
-  const { agents, save: saveAgents } = useDemoAgents();
-  const [role, setRole] = useState<Role>('Admin');
-  const [roleReady, setRoleReady] = useState(false);
+  const router = useRouter();
+  const { user, loading: sessionLoading, error: sessionError, request, signOut } = useSession();
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [activeAgents, setActiveAgents] = useState(0);
+  const [recordsLoading, setRecordsLoading] = useState(true);
+  const [recordsError, setRecordsError] = useState('');
+  const currentPath = pathname || '/';
+  const publicRoute = currentPath === '/login' || currentPath === '/register' || currentPath === '/agent/register';
+  const role = user ? roleByAccount[user.role] : null;
+  const routeRole = role ?? 'NRI';
+  const permitted = Boolean(user && role && (
+    (currentPath.startsWith('/admin') && user.role === 'ADMIN')
+    || (currentPath.startsWith('/audit') && (user.role === 'ADMIN' || user.role === 'AUDITOR'))
+    || (currentPath.startsWith('/agent') && user.role === 'AGENT')
+    || (currentPath.startsWith('/app') && user.role === 'NRI')
+  ));
+
+  const refreshRecords = useCallback(async () => {
+    if (!user) return;
+    setRecordsLoading(true);
+    setRecordsError('');
+    try {
+      const propertyPath = user.role === 'ADMIN'
+        ? 'admin/properties?page=1&pageSize=100'
+        : user.role === 'AUDITOR'
+          ? 'audit/properties?page=1&pageSize=100'
+          : 'properties?page=1&pageSize=100';
+      const result = await request<{ items: ApiProperty[] }>(propertyPath);
+      setProperties(result.items.map(toProperty));
+      if (user.role === 'ADMIN') {
+        const [apiAgents, dashboard, districts] = await Promise.all([
+          request<ApiAgent[]>('admin/agents'),
+          request<{ activeAgents: number }>('admin/dashboard'),
+          request<Array<{ id: string; name: string }>>('masters/districts')
+        ]);
+        const districtNames = new Map(districts.map((district) => [district.id, district.name]));
+        setAgents(apiAgents.map((agent) => toAgent(agent, districtNames)));
+        setActiveAgents(dashboard.activeAgents);
+      } else {
+        setAgents([]);
+        setActiveAgents(0);
+      }
+    } catch (cause) {
+      setRecordsError(cause instanceof Error ? cause.message : 'Unable to load workspace data from the LandTrack API.');
+    } finally {
+      setRecordsLoading(false);
+    }
+  }, [request, user]);
 
   useEffect(() => {
-    const savedRole = window.localStorage.getItem('landtrack-demo-role');
-    if (savedRole === 'Admin' || savedRole === 'Auditor' || savedRole === 'Agent' || savedRole === 'NRI') setRole(savedRole);
-    setRoleReady(true);
-  }, []);
-  const updateRole = (nextRole: Role) => {
-    setRole(nextRole);
-    window.localStorage.setItem('landtrack-demo-role', nextRole);
+    if (user && permitted) void refreshRecords();
+  }, [permitted, refreshRecords, user]);
+
+  const reviewProperty = useCallback(async (id: string, status: PropertyStatus) => {
+    const action = status === 'Approved' ? 'approve' : 'reject';
+    await request(`admin/properties/${encodeURIComponent(id)}/${action}`, {
+      method: 'POST',
+      ...(action === 'reject' ? { body: JSON.stringify({ reason: 'Rejected by administrator.' }) } : {})
+    });
+    await refreshRecords();
+  }, [refreshRecords, request]);
+
+  const reviewAgent = useCallback(async (id: string, status: AgentStatus, reason?: string) => {
+    const action = status === 'Approved' ? 'approve' : 'reject';
+    await request(`admin/agents/${encodeURIComponent(id)}/${action}`, {
+      method: 'POST',
+      ...(action === 'reject' ? { body: JSON.stringify({ reason }) } : {})
+    });
+    await refreshRecords();
+  }, [refreshRecords, request]);
+
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (!user && currentPath === '/login') return;
+    if (!user && currentPath === '/register') return;
+    if (!user && currentPath === '/agent/register') return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    if (publicRoute || currentPath === '/') {
+      router.replace(homeByRole[roleByAccount[user.role]]);
+      return;
+    }
+    if (!permitted) router.replace(homeByRole[roleByAccount[user.role]]);
+  }, [currentPath, permitted, publicRoute, router, sessionLoading, user]);
+
+  if (sessionLoading) return <div className="app-loading" aria-label="Loading LandTrack" />;
+  if (currentPath === '/login') return <LoginPage />;
+  if (currentPath === '/register') return <NriRegistrationPage />;
+  if (currentPath === '/agent/register' && !user) return <AgentRegistrationPage />;
+  if (!user || !role || !permitted || currentPath === '/' || recordsLoading) return <div className="app-loading" aria-label="Loading LandTrack" />;
+
+  const handleSignOut = () => {
+    void signOut().then(() => router.replace('/login')).catch((cause: unknown) => {
+      console.error('LandTrack sign-out request failed.', cause);
+      router.replace('/login');
+    });
   };
 
-  const currentPath = pathname || '/';
-  const routeRole: Role = currentPath.startsWith('/audit') ? 'Auditor' : currentPath.startsWith('/agent') ? 'Agent' : currentPath.startsWith('/app') ? 'NRI' : role;
-  if (!roleReady) return <div className="app-loading" aria-label="Loading LandTrack" />;
   return (
     <main className="app-shell">
-      <Header role={role} setRole={updateRole} />
+      <Header role={role} name={user.name} onSignOut={handleSignOut} />
       <div className="app-body">
         <Sidebar role={routeRole} pathname={currentPath} />
         <div className="main-column">
-          <div className="mobile-role-switch"><span>Preview role</span><select value={role} onChange={(event) => updateRole(event.target.value as Role)}><option>Admin</option><option>Auditor</option><option>Agent</option><option>NRI</option></select></div>
-          <main className="page-content"><SectionPage pathname={currentPath === '/' ? '/admin' : currentPath} properties={properties} save={save} agents={agents} saveAgents={saveAgents} /></main>
-          <footer className="app-footer"><span>LandTrack MVP · Hyderabad, Telangana</span><span>Sample data for product preview</span></footer>
+          <main className="page-content">
+            {sessionError && <p className="form-error" role="alert">{sessionError}</p>}
+            {recordsError
+              ? <section className="card empty-state"><h2>Workspace data unavailable</h2><p role="alert">{recordsError}</p><button className="button button-primary" onClick={() => { void refreshRecords(); }}>Try again</button></section>
+              : <SectionPage pathname={currentPath} properties={properties} agents={agents} activeAgents={activeAgents} onReviewProperty={reviewProperty} onReviewAgent={reviewAgent} />}
+          </main>
+          <footer className="app-footer"><span>LandTrack · Hyderabad, Telangana</span><span>Secure account workspace</span></footer>
         </div>
       </div>
     </main>
