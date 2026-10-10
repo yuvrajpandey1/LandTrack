@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+coverage
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+**/.turbo
+**/dist
+**/.cache
+*.tsbuildinfo
+packages/shared/src/index.js
+packages/shared/src/index.js.map

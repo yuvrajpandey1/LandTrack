@@ -1,0 +1,467 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  NRI
+  AGENT
+  ADMIN
+  AUDITOR
+}
+
+enum AccountStatus {
+  PENDING_OTP
+  ACTIVE
+  SUSPENDED
+}
+
+enum AgentApproval {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ConsentType {
+  TERMS
+  PRIVACY
+  WHATSAPP
+  RECORDING
+}
+
+enum PropertyType {
+  AGRICULTURAL
+  RESIDENTIAL_PLOT
+  COMMERCIAL
+  HOUSE
+  APARTMENT
+  OTHER
+}
+
+enum AreaUnit {
+  ACRE
+  GUNTA
+  SQ_YARD
+  SQ_FT
+  SQ_METER
+}
+
+enum OwnershipType {
+  SOLE
+  JOINT
+  INHERITED
+  OTHER
+}
+
+enum Intent {
+  TRACK_ONLY
+  SELL
+  LEASE
+  RENT
+}
+
+enum PropertyStatus {
+  DRAFT
+  PAYMENT_PENDING
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum AppointmentMode {
+  AUDIO
+  VIDEO
+  SITE_VISIT
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  AGENT_ASSIGNED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+  NO_SHOW
+}
+
+enum Channel {
+  PORTAL
+  WHATSAPP
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum CallStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id               String                    @id @default(uuid())
+  name             String
+  email            String                    @unique
+  mobile           String                    @unique
+  whatsappNumber   String?
+  passwordHash     String
+  role             Role                      @default(NRI)
+  status           AccountStatus             @default(PENDING_OTP)
+  originCountry    String?
+  currentCountry   String?
+  timeZone         String                    @default("Asia/Kolkata")
+  mobileVerifiedAt DateTime?
+  mfaSecret        String?
+  mfaEnabled       Boolean                   @default(false)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  agentProfile     AgentProfile?
+  consents         Consent[]
+  properties       Property[]                @relation("PropertyOwner")
+  uploadedDocs     Document[]                @relation("DocumentUploader")
+  payments         Payment[]
+  appointments     Appointment[]             @relation("AppointmentNri")
+  assignedJobs     Appointment[]             @relation("AppointmentAgent")
+  participants     ConversationParticipant[]
+  messages         Message[]
+  attachments      ChatAttachment[]
+  auditLogs        AuditLog[]                @relation("AuditActor")
+  notifications    Notification[]
+  otpChallenges    OtpChallenge[]
+  refreshTokens    RefreshToken[]
+
+  @@index([role, status])
+}
+
+model OtpChallenge {
+  id         String    @id @default(uuid())
+  userId     String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  sendCount  Int       @default(1)
+  lastSentAt DateTime  @default(now())
+  consumedAt DateTime?
+  ip         String?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([ip, createdAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+}
+
+model Consent {
+  id          String      @id @default(uuid())
+  userId      String
+  type        ConsentType
+  acceptedAt  DateTime    @default(now())
+  withdrawnAt DateTime?
+  version     String      @default("1.0")
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+}
+
+model AgentProfile {
+  userId          String        @id
+  experienceYears Int?
+  languages       String[]
+  areasCovered    String[]
+  idDocumentKey   String?
+  approval        AgentApproval @default(PENDING)
+  approvedById    String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model District {
+  id         String     @id @default(uuid())
+  name       String     @unique
+  active     Boolean    @default(true)
+  talukas    Taluka[]
+  properties Property[]
+}
+
+model Taluka {
+  id         String     @id @default(uuid())
+  name       String
+  districtId String
+  active     Boolean    @default(true)
+  district   District   @relation(fields: [districtId], references: [id])
+  villages   Village[]
+  properties Property[]
+
+  @@unique([districtId, name])
+}
+
+model Village {
+  id         String     @id @default(uuid())
+  name       String
+  talukaId   String
+  active     Boolean    @default(true)
+  taluka     Taluka     @relation(fields: [talukaId], references: [id])
+  properties Property[]
+
+  @@unique([talukaId, name])
+}
+
+model Property {
+  id              String         @id @default(uuid())
+  ownerId         String
+  name            String
+  type            PropertyType
+  surveyNumber    String
+  state           String         @default("Telangana")
+  city            String         @default("Hyderabad")
+  districtId      String
+  talukaId        String
+  villageId       String
+  address         String?
+  landmark        String?
+  latitude        Float?
+  longitude       Float?
+  area            Decimal        @db.Decimal(14, 3)
+  areaUnit        AreaUnit
+  ownership       OwnershipType
+  intent          Intent         @default(TRACK_ONLY)
+  expectedPrice   Decimal?       @db.Decimal(16, 2)
+  notes           String?
+  status          PropertyStatus @default(DRAFT)
+  rejectionReason String?
+  submittedAt     DateTime?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  owner           User           @relation("PropertyOwner", fields: [ownerId], references: [id])
+  district        District       @relation(fields: [districtId], references: [id])
+  taluka          Taluka         @relation(fields: [talukaId], references: [id])
+  village         Village        @relation(fields: [villageId], references: [id])
+  documents       Document[]
+  payments        Payment[]
+  appointments    Appointment[]
+  conversations   Conversation[]
+
+  @@index([districtId, talukaId, villageId])
+  @@index([status])
+  @@index([ownerId, createdAt])
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  propertyId   String
+  kind         String
+  storageKey   String   @unique
+  mimeType     String
+  sizeBytes    Int
+  sha256       String?
+  scanStatus   String   @default("PENDING")
+  uploadedById String
+  uploadedAt   DateTime @default(now())
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation("DocumentUploader", fields: [uploadedById], references: [id])
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  userId            String
+  propertyId        String
+  provider          String
+  providerOrderId   String        @unique
+  providerPaymentId String?       @unique
+  checkoutUrl       String?
+  amount            Decimal       @db.Decimal(12, 2)
+  currency          String        @default("INR")
+  status            PaymentStatus @default(CREATED)
+  receiptNo         String?
+  rawWebhook        Json?
+  createdAt         DateTime      @default(now())
+  paidAt            DateTime?
+  user              User          @relation(fields: [userId], references: [id])
+  property          Property      @relation(fields: [propertyId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([propertyId, status])
+}
+
+model SlotTemplate {
+  id          String  @id @default(uuid())
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  durationMin Int     @default(30)
+  capacity    Int     @default(1)
+  active      Boolean @default(true)
+}
+
+model SlotException {
+  id     String   @id @default(uuid())
+  date   DateTime @unique
+  reason String?
+}
+
+model Appointment {
+  id           String            @id @default(uuid())
+  propertyId   String
+  nriId        String
+  agentId      String?
+  mode         AppointmentMode
+  startUtc     DateTime
+  endUtc       DateTime
+  status       AppointmentStatus @default(REQUESTED)
+  notes        String?
+  assignedAt   DateTime?
+  assignedById String?
+  createdAt    DateTime          @default(now())
+  property     Property          @relation(fields: [propertyId], references: [id])
+  nri          User              @relation("AppointmentNri", fields: [nriId], references: [id])
+  agent        User?             @relation("AppointmentAgent", fields: [agentId], references: [id])
+  call         Call?
+  conversation Conversation?
+
+  @@index([startUtc, status])
+  @@index([nriId, startUtc])
+  @@index([agentId, startUtc])
+}
+
+model Conversation {
+  id              String                    @id @default(uuid())
+  propertyId      String
+  appointmentId   String?                   @unique
+  createdAt       DateTime                  @default(now())
+  property        Property                  @relation(fields: [propertyId], references: [id])
+  appointment     Appointment?              @relation(fields: [appointmentId], references: [id])
+  participants    ConversationParticipant[]
+  messages        Message[]
+  chatAttachments ChatAttachment[]
+}
+
+model ConversationParticipant {
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+}
+
+model Message {
+  id             String          @id @default(uuid())
+  conversationId String
+  senderId       String?
+  channel        Channel         @default(PORTAL)
+  body           String?
+  attachmentKey  String?
+  attachmentMime String?
+  attachmentId   String?         @unique
+  externalId     String?         @unique
+  deliveryStatus String?
+  hidden         Boolean         @default(false)
+  reported       Boolean         @default(false)
+  sentAt         DateTime        @default(now())
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User?           @relation(fields: [senderId], references: [id])
+  attachment     ChatAttachment? @relation(fields: [attachmentId], references: [id])
+
+  @@index([conversationId, sentAt])
+}
+
+model ChatAttachment {
+  id             String       @id @default(uuid())
+  conversationId String
+  uploaderId     String
+  storageKey     String       @unique
+  mimeType       String
+  sizeBytes      Int
+  sha256         String?
+  scanStatus     String       @default("PENDING")
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        Message?
+  user           User?        @relation(fields: [userId], references: [id])
+  userId         String?
+
+  @@index([conversationId, uploaderId])
+}
+
+model Call {
+  id                  String          @id @default(uuid())
+  appointmentId       String          @unique
+  roomName            String          @unique
+  mode                AppointmentMode
+  scheduledStart      DateTime
+  actualStart         DateTime?
+  actualEnd           DateTime?
+  status              CallStatus      @default(SCHEDULED)
+  recordingKey        String?
+  recordingConsentAll Boolean         @default(false)
+  recordingConsentBy  String[]        @default([])
+  events              Json            @default("[]")
+  appointment         Appointment     @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String?
+  channel    Channel
+  template   String
+  payload    Json
+  status     String
+  error      String?
+  externalId String?  @unique
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  actorId   String?
+  actorRole Role?
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  userAgent String?
+  at        DateTime @default(now())
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([actorId, at])
+}
