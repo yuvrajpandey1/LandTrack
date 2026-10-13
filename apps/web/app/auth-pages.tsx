@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, LandPlot, ShieldCheck } from 'lucide-react';
+import { supportedCountries } from '@landtrack/shared';
 import { ApiError, useSession } from './session-provider';
 
-type Country = { code: string; name: string };
 type District = { id: string; name: string };
 
 function AuthFrame({ children, title, description }: { children: React.ReactNode; title: string; description: string }) {
@@ -86,7 +86,6 @@ export function LoginPage() {
 export function NriRegistrationPage() {
   const router = useRouter();
   const { request } = useSession();
-  const [countries, setCountries] = useState<Country[]>([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
@@ -98,14 +97,6 @@ export function NriRegistrationPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void request<Country[]>('masters/countries')
-      .then((result) => { if (active) setCountries(result); })
-      .catch((cause: unknown) => { if (active) setError(showError(cause)); });
-    return () => { active = false; };
-  }, [request]);
 
   const submitRegistration = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -136,13 +127,13 @@ export function NriRegistrationPage() {
           <label className="form-field"><span>Email address</span><input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label className="form-field"><span>Mobile number (include country code)</span><input type="tel" autoComplete="tel" required pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={mobile} onChange={(event) => setMobile(event.target.value)} /></label>
           <label className="form-field"><span>Password</span><input type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          <label className="form-field"><span>Country of origin</span><select required value={originCountry} onChange={(event) => setOriginCountry(event.target.value)}><option value="">Select a country</option>{countries.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
-          <label className="form-field"><span>Current country</span><select required value={currentCountry} onChange={(event) => setCurrentCountry(event.target.value)}><option value="">Select a country</option>{countries.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
+          <label className="form-field"><span>Country of origin</span><select required value={originCountry} onChange={(event) => setOriginCountry(event.target.value)}><option value="">Select a country</option>{supportedCountries.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
+          <label className="form-field"><span>Current country</span><select required value={currentCountry} onChange={(event) => setCurrentCountry(event.target.value)}><option value="">Select a country</option>{supportedCountries.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
           <label className="form-field"><span>WhatsApp number <em>Optional</em></span><input type="tel" pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={whatsappNumber} onChange={(event) => setWhatsappNumber(event.target.value)} /></label>
           <label className="terms-check"><input type="checkbox" checked={whatsappOptIn} onChange={(event) => setWhatsappOptIn(event.target.checked)} /><span>I agree to receive WhatsApp updates on this number.</span></label>
           <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the LandTrack terms and privacy notice.</span></label>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button button-primary auth-submit" disabled={busy || countries.length === 0}>{busy ? 'Creating account…' : 'Create account'}<ArrowRight size={16} /></button>
+          <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}<ArrowRight size={16} /></button>
           <p className="auth-switch">Already registered? <Link href="/login">Sign in</Link></p>
         </form>
     </AuthFrame>
