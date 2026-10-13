@@ -9,7 +9,7 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AgentRegistrationPage, LoginPage, NriRegistrationPage } from '../auth-pages';
+import { AdminRegistrationPage, AgentRegistrationPage, LoginPage, NriRegistrationPage, PasswordChangePage } from '../auth-pages';
 import { AppointmentBooking } from '../appointment-booking';
 import { PaymentHistory } from '../payment-history';
 import { PropertyRegistration } from '../property-registration';
@@ -181,6 +181,7 @@ function Header({ role, name, onSignOut }: { role: Role; name: string; onSignOut
           <kbd>⌘ K</kbd>
         </label>
         <Link className="agent-register-link" href="/agent/register">Agent registration</Link>
+        <Link className="agent-register-link" href="/account/password">Change password</Link>
         <button className="icon-button notification-button" aria-label="Notifications">
           <Bell size={19} /><span className="notification-dot" />
         </button>
@@ -717,7 +718,8 @@ export default function LandTrackPage() {
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [recordsError, setRecordsError] = useState('');
   const currentPath = pathname || '/';
-  const publicRoute = currentPath === '/login' || currentPath === '/register' || currentPath === '/agent/register';
+  const publicRoute = currentPath === '/login' || currentPath === '/register' || currentPath === '/agent/register' || currentPath === '/admin/register';
+  const passwordRoute = currentPath === '/account/password';
   const role = user ? roleByAccount[user.role] : null;
   const routeRole = role ?? 'NRI';
   const permitted = Boolean(user && role && (
@@ -725,6 +727,7 @@ export default function LandTrackPage() {
     || (currentPath.startsWith('/audit') && (user.role === 'ADMIN' || user.role === 'AUDITOR'))
     || (currentPath.startsWith('/agent') && user.role === 'AGENT')
     || (currentPath.startsWith('/app') && user.role === 'NRI')
+    || passwordRoute
   ));
 
   const refreshRecords = useCallback(async () => {
@@ -760,8 +763,8 @@ export default function LandTrackPage() {
   }, [request, user]);
 
   useEffect(() => {
-    if (user && permitted) void refreshRecords();
-  }, [permitted, refreshRecords, user]);
+    if (user && permitted && !passwordRoute) void refreshRecords();
+  }, [passwordRoute, permitted, refreshRecords, user]);
 
   const reviewProperty = useCallback(async (id: string, status: PropertyStatus) => {
     const action = status === 'Approved' ? 'approve' : 'reject';
@@ -786,6 +789,7 @@ export default function LandTrackPage() {
     if (!user && currentPath === '/login') return;
     if (!user && currentPath === '/register') return;
     if (!user && currentPath === '/agent/register') return;
+    if (!user && currentPath === '/admin/register') return;
     if (!user) {
       router.replace('/login');
       return;
@@ -801,7 +805,8 @@ export default function LandTrackPage() {
   if (currentPath === '/login') return <LoginPage />;
   if (currentPath === '/register') return <NriRegistrationPage />;
   if (currentPath === '/agent/register' && !user) return <AgentRegistrationPage />;
-  if (!user || !role || !permitted || currentPath === '/' || recordsLoading) return <div className="app-loading" aria-label="Loading LandTrack" />;
+  if (currentPath === '/admin/register' && !user) return <AdminRegistrationPage />;
+  if (!user || !role || !permitted || currentPath === '/' || (recordsLoading && !passwordRoute)) return <div className="app-loading" aria-label="Loading LandTrack" />;
 
   const handleSignOut = () => {
     void signOut().then(() => router.replace('/login')).catch((cause: unknown) => {
@@ -818,7 +823,9 @@ export default function LandTrackPage() {
         <div className="main-column">
           <main className="page-content">
             {sessionError && <p className="form-error" role="alert">{sessionError}</p>}
-            {recordsError
+            {passwordRoute
+              ? <PasswordChangePage />
+              : recordsError
               ? <section className="card empty-state"><h2>Workspace data unavailable</h2><p role="alert">{recordsError}</p><button className="button button-primary" onClick={() => { void refreshRecords(); }}>Try again</button></section>
               : <SectionPage pathname={currentPath} properties={properties} agents={agents} activeAgents={activeAgents} onReviewProperty={reviewProperty} onReviewAgent={reviewAgent} />}
           </main>

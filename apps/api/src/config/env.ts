@@ -16,9 +16,14 @@ const environmentSchema = z.object({
   S3_SECRET_KEY: z.string().min(1),
   SMTP_URL: z.string().min(1),
   MAIL_FROM: z.string().email(),
-  SMS_PROVIDER: z.enum(['fake', 'cloud']).default('fake'),
+  SMS_PROVIDER: z.enum(['fake', 'cloud', 'twilio_verify']).default('fake'),
   SMS_API_URL: z.string().url().optional(),
   SMS_API_TOKEN: z.string().optional(),
+  TWILIO_ACCOUNT_SID: z.string().regex(/^AC[0-9a-fA-F]{32}$/).optional().or(z.literal('')),
+  TWILIO_AUTH_TOKEN: z.string().min(32).optional().or(z.literal('')),
+  TWILIO_API_KEY_SID: z.string().regex(/^SK[0-9a-fA-F]{32}$/).optional().or(z.literal('')),
+  TWILIO_API_KEY_SECRET: z.string().min(32).optional().or(z.literal('')),
+  TWILIO_VERIFY_SERVICE_SID: z.string().regex(/^VA[0-9a-fA-F]{32}$/).optional().or(z.literal('')),
   WHATSAPP_PROVIDER: z.enum(['fake', 'cloud']).default('fake'),
   WHATSAPP_VERIFY_TOKEN: z.string().min(1),
   WHATSAPP_APP_SECRET: z.string().optional(),
@@ -38,8 +43,25 @@ const environmentSchema = z.object({
   ADMIN_NAME: z.string().min(2).max(120).optional(),
   ADMIN_MOBILE: z.string().regex(/^\+[1-9]\d{7,14}$/).optional(),
   ADMIN_INITIAL_PASSWORD: z.string().optional(),
+  ADMIN_SIGNUP_CODE: z.string().min(32).optional().or(z.literal('')),
   ADMIN_NOTIFY_EMAIL: z.string().email()
 }).superRefine((env, context) => {
+  if (env.SMS_PROVIDER === 'twilio_verify') {
+    const hasApiKey = Boolean(env.TWILIO_API_KEY_SID && env.TWILIO_API_KEY_SECRET);
+    const hasAccountCredentials = Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN);
+    if (!env.TWILIO_VERIFY_SERVICE_SID || (!hasApiKey && !hasAccountCredentials)) {
+      context.addIssue({ code: 'custom', message: 'A Twilio Verify Service SID and either API key credentials or Account SID/Auth Token are required when SMS_PROVIDER=twilio_verify.' });
+    }
+    if (Boolean(env.TWILIO_API_KEY_SID) !== Boolean(env.TWILIO_API_KEY_SECRET)) {
+      context.addIssue({ code: 'custom', message: 'TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET must be configured together.' });
+    }
+    if (Boolean(env.TWILIO_ACCOUNT_SID) !== Boolean(env.TWILIO_AUTH_TOKEN)) {
+      context.addIssue({ code: 'custom', message: 'TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be configured together.' });
+    }
+  }
+  if (env.SMS_PROVIDER === 'cloud' && (!env.SMS_API_URL || !env.SMS_API_TOKEN)) {
+    context.addIssue({ code: 'custom', message: 'SMS_API_URL and SMS_API_TOKEN are required when SMS_PROVIDER=cloud.' });
+  }
   if (env.NODE_ENV === 'production') {
     for (const provider of [env.SMS_PROVIDER, env.WHATSAPP_PROVIDER, env.PAYMENT_PROVIDER]) {
       if (provider === 'fake') context.addIssue({ code: 'custom', message: 'Fake providers cannot be enabled in production.' });

@@ -75,7 +75,7 @@ export class AdminService {
         name: input.name.trim(), email: input.email.toLowerCase(),
         mobile: input.mobile,
         passwordHash: await argon2.hash(temporaryPassword, { type: argon2.argon2id }),
-        role: input.role, status: AccountStatus.PENDING_OTP
+        role: input.role, status: AccountStatus.ACTIVE
       }
     });
     await this.audit.record({ actorId: actor.sub, actorRole: actor.role, action: 'ADMIN_ACCOUNT_CREATED', entity: 'User', entityId: user.id, after: { role: input.role } });

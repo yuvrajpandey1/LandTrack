@@ -7,25 +7,25 @@ import { JwtService } from '@nestjs/jwt';
 import { AccountStatus, Role } from '@prisma/client';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
-import type { Server, Socket } from 'socket.io';
+import type { Namespace, Socket } from 'socket.io';
 import { PrismaService } from '../../database/prisma.service';
 import type { AuthUser } from '../../common/auth';
 
 @WebSocketGateway({ namespace: '/chat', path: '/ws', cors: { origin: process.env.APP_URL, credentials: true } })
 export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
-  @WebSocketServer() server!: Server;
+  @WebSocketServer() server!: Namespace;
   private readonly logger = new Logger(ChatGateway.name);
   private readonly online = new Map<string, number>();
 
   constructor(private readonly jwt: JwtService, private readonly prisma: PrismaService) {}
 
-  async afterInit(server: Server): Promise<void> {
+  async afterInit(server: Namespace): Promise<void> {
     const publisher = createClient({ url: process.env.REDIS_URL });
     const subscriber = publisher.duplicate();
     publisher.on('error', (error) => this.logger.error(`Socket Redis publisher error: ${error.message}`));
     subscriber.on('error', (error) => this.logger.error(`Socket Redis subscriber error: ${error.message}`));
     await Promise.all([publisher.connect(), subscriber.connect()]);
-    server.adapter(createAdapter(publisher, subscriber));
+    server.server.adapter(createAdapter(publisher, subscriber));
   }
 
   async handleConnection(client: Socket): Promise<void> {

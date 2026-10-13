@@ -448,6 +448,13 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+model AdminSignupToken {
+  id         String    @id @default("initial")
+  tokenHash  String
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
 model AuditLog {
   id        BigInt   @id @default(autoincrement())
   actorId   String?

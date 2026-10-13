@@ -25,11 +25,24 @@ const registerAgentSchema = z.object({
   experienceYears: z.number().int().min(0).max(60).optional(),
   languages: z.array(z.string().min(1).max(60)).min(1).max(20),
   areasCovered: z.array(z.string().uuid()).min(1).max(100),
+  consents: z.object({ terms: z.literal(true), privacy: z.literal(true) }),
   whatsappNumber: z.string().regex(/^\+[1-9]\d{7,14}$/).optional()
+});
+const registerAdminSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  email: z.string().email().max(254),
+  mobile: z.string().regex(/^\+[1-9]\d{7,14}$/),
+  password: passwordSchema,
+  consents: z.object({ terms: z.literal(true), privacy: z.literal(true) }),
+  setupCode: z.string().min(32).max(256)
+});
+const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: passwordSchema
 });
 const otpSchema = z.object({ mobile: z.string().regex(/^\+[1-9]\d{7,14}$/) });
 const verifyOtpSchema = otpSchema.extend({ code: z.string().regex(/^\d{6}$/) });
-const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1), totp: z.string().optional() });
+const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 const codeSchema = z.object({ code: z.string().regex(/^\d{6}$/) });
 const profileSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
@@ -45,14 +58,20 @@ export class AuthController {
 
   @Public()
   @Post('auth/register/nri')
-  registerNri(@Body(new ZodPipe(registerNriSchema)) body: z.infer<typeof registerNriSchema>, @Ip() ip: string) {
-    return this.auth.registerNri(body, ip);
+  registerNri(@Body(new ZodPipe(registerNriSchema)) body: z.infer<typeof registerNriSchema>) {
+    return this.auth.registerNri(body);
   }
 
   @Public()
   @Post('auth/register/agent')
-  registerAgent(@Body(new ZodPipe(registerAgentSchema)) body: z.infer<typeof registerAgentSchema>, @Ip() ip: string) {
-    return this.auth.registerAgent(body, ip);
+  registerAgent(@Body(new ZodPipe(registerAgentSchema)) body: z.infer<typeof registerAgentSchema>) {
+    return this.auth.registerAgent(body);
+  }
+
+  @Public()
+  @Post('auth/register/admin')
+  registerAdmin(@Body(new ZodPipe(registerAdminSchema)) body: z.infer<typeof registerAdminSchema>) {
+    return this.auth.registerAdmin(body);
   }
 
   @Public()
@@ -70,13 +89,9 @@ export class AuthController {
   @Public()
   @Post('auth/login')
   async login(@Body(new ZodPipe(loginSchema)) body: z.infer<typeof loginSchema>, @Res({ passthrough: true }) response: Response) {
-    const result = await this.auth.login(body.email, body.password, body.totp);
+    const result = await this.auth.login(body.email, body.password);
     this.setRefreshCookie(response, result.refreshToken);
-    return {
-      accessToken: result.accessToken,
-      user: result.user,
-      ...(result.mfaSetupRequired ? { mfaSetupRequired: true } : {})
-    };
+    return { accessToken: result.accessToken, user: result.user };
   }
 
   @Public()
@@ -123,6 +138,18 @@ export class AuthController {
   @ApiBearerAuth()
   updateProfile(@CurrentUser() user: AuthUser, @Body(new ZodPipe(profileSchema)) body: z.infer<typeof profileSchema>) {
     return this.auth.updateProfile(user.sub, body);
+  }
+
+  @Patch('me/password')
+  @ApiBearerAuth()
+  async changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodPipe(passwordChangeSchema)) body: z.infer<typeof passwordChangeSchema>,
+    @Res({ passthrough: true }) response: Response
+  ) {
+    const result = await this.auth.changePassword(user.sub, body.currentPassword, body.newPassword);
+    this.setRefreshCookie(response, result.refreshToken);
+    return { accessToken: result.accessToken };
   }
 
   @Patch('me/consents')

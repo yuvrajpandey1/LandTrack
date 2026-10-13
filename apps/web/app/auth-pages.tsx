@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, LandPlot, ShieldCheck } from 'lucide-react';
 import { ApiError, useSession } from './session-provider';
@@ -42,28 +42,23 @@ function roleHome(role: string): string {
 
 export function LoginPage() {
   const router = useRouter();
-  const { user, signIn, setupMfa, verifyMfa } = useSession();
+  const registered = useSearchParams().get('registered') === '1';
+  const { user, signIn } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [totp, setTotp] = useState('');
-  const [mfa, setMfa] = useState<{ secret: string; otpauthUrl: string } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (user && !mfa && !busy) router.replace(roleHome(user.role));
-  }, [busy, mfa, router, user]);
+    if (user && !busy) router.replace(roleHome(user.role));
+  }, [busy, router, user]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusy(true);
     setError('');
     try {
-      const result = await signIn(email.trim(), password, totp || undefined);
-      if (result.mfaSetupRequired) {
-        setMfa(await setupMfa());
-        return;
-      }
+      const result = await signIn(email.trim(), password);
       router.replace(roleHome(result.role));
     } catch (cause) {
       setError(showError(cause));
@@ -72,41 +67,18 @@ export function LoginPage() {
     }
   };
 
-  const confirmMfa = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      await verifyMfa(totp);
-      if (user) router.replace(roleHome(user.role));
-    } catch (cause) {
-      setError(showError(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
-    <AuthFrame title={mfa ? 'Secure your account' : 'Sign in to LandTrack'} description={mfa ? 'Set up your authenticator before opening the workspace.' : 'Access your property and appointment workspace.'}>
-      {mfa ? (
-        <form className="auth-form" onSubmit={confirmMfa}>
-          <div className="upload-info"><ShieldCheck size={17} /><span>Scan the authenticator link or enter this setup key in your authenticator app. Keep the key private.</span></div>
-          <p className="mfa-secret">{mfa.secret}</p>
-          <label className="form-field"><span>Authenticator code</span><input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" required value={totp} onChange={(event) => setTotp(event.target.value)} /></label>
-          {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Verifying…' : 'Verify and continue'}<ArrowRight size={16} /></button>
-        </form>
-      ) : (
+    <AuthFrame title="Sign in to LandTrack" description="Access your property and appointment workspace with your password.">
         <form className="auth-form" onSubmit={submit}>
           <label className="form-field"><span>Email address</span><input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label className="form-field"><span>Password</span><input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          <label className="form-field"><span>Authenticator code <em>Required for Admin and Auditor accounts</em></span><input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value)} /></label>
+          {registered && <p className="success-panel" role="status">Your account is ready. Sign in with your password.</p>}
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}<ArrowRight size={16} /></button>
           <p className="auth-switch">New to LandTrack? <Link href="/register">Create an NRI account</Link></p>
           <p className="auth-switch">Local agent? <Link href="/agent/register">Apply to register</Link></p>
+          <p className="auth-switch">Administrator? <Link href="/admin/register">Create with setup code</Link></p>
         </form>
-      )}
     </AuthFrame>
   );
 }
@@ -124,8 +96,6 @@ export function NriRegistrationPage() {
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [whatsappOptIn, setWhatsappOptIn] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [pendingMobile, setPendingMobile] = useState('');
-  const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -151,21 +121,7 @@ export function NriRegistrationPage() {
           consents: { terms: true, privacy: true }
         })
       });
-      setPendingMobile(mobile);
-    } catch (cause) {
-      setError(showError(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const verify = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      await request('auth/otp/verify', { method: 'POST', body: JSON.stringify({ mobile: pendingMobile, code }) });
-      router.replace('/login?verified=1');
+      router.replace('/login?registered=1');
     } catch (cause) {
       setError(showError(cause));
     } finally {
@@ -174,14 +130,7 @@ export function NriRegistrationPage() {
   };
 
   return (
-    <AuthFrame title={pendingMobile ? 'Verify your mobile' : 'Create your NRI account'} description={pendingMobile ? `Enter the six-digit verification code sent to ${pendingMobile}.` : 'Create an account to register and manage your Hyderabad property.'}>
-      {pendingMobile ? (
-        <form className="auth-form" onSubmit={verify}>
-          <label className="form-field"><span>Six-digit verification code</span><input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" required value={code} onChange={(event) => setCode(event.target.value)} /></label>
-          {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Verifying…' : 'Verify mobile'}<ArrowRight size={16} /></button>
-        </form>
-      ) : (
+    <AuthFrame title="Create your NRI account" description="Create an account to register and manage your Hyderabad property. Sign in with your password after signup.">
         <form className="auth-form" onSubmit={submitRegistration}>
           <label className="form-field"><span>Full name</span><input autoComplete="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label className="form-field"><span>Email address</span><input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
@@ -196,7 +145,6 @@ export function NriRegistrationPage() {
           <button className="button button-primary auth-submit" disabled={busy || countries.length === 0}>{busy ? 'Creating account…' : 'Create account'}<ArrowRight size={16} /></button>
           <p className="auth-switch">Already registered? <Link href="/login">Sign in</Link></p>
         </form>
-      )}
     </AuthFrame>
   );
 }
@@ -212,8 +160,6 @@ export function AgentRegistrationPage() {
   const [experienceYears, setExperienceYears] = useState('');
   const [languages, setLanguages] = useState('');
   const [areasCovered, setAreasCovered] = useState<string[]>([]);
-  const [pendingMobile, setPendingMobile] = useState('');
-  const [code, setCode] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -242,24 +188,11 @@ export function AgentRegistrationPage() {
         body: JSON.stringify({
           name, email, mobile, password, experienceYears: Number(experienceYears),
           languages: [...new Set(languages.split(',').map((item) => item.trim()).filter(Boolean))],
-          areasCovered
+          areasCovered,
+          consents: { terms: true, privacy: true }
         })
       });
-      setPendingMobile(mobile);
-    } catch (cause) {
-      setError(showError(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const verify = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      await request('auth/otp/verify', { method: 'POST', body: JSON.stringify({ mobile: pendingMobile, code }) });
-      router.replace('/login?verified=1');
+      router.replace('/login?registered=1');
     } catch (cause) {
       setError(showError(cause));
     } finally {
@@ -268,14 +201,7 @@ export function AgentRegistrationPage() {
   };
 
   return (
-    <AuthFrame title={pendingMobile ? 'Verify your mobile' : 'Agent registration'} description={pendingMobile ? `Enter the verification code sent to ${pendingMobile}. Your profile is reviewed after verification.` : 'Apply to support property owners across the Hyderabad service region.'}>
-      {pendingMobile ? (
-        <form className="auth-form" onSubmit={verify}>
-          <label className="form-field"><span>Six-digit verification code</span><input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" required value={code} onChange={(event) => setCode(event.target.value)} /></label>
-          {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Verifying…' : 'Verify mobile'}<ArrowRight size={16} /></button>
-        </form>
-      ) : (
+    <AuthFrame title="Agent registration" description="Apply to support property owners across the Hyderabad service region. Your profile remains pending admin approval after signup.">
         <form className="auth-form" onSubmit={submitRegistration}>
           <label className="form-field"><span>Full name</span><input autoComplete="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label className="form-field"><span>Email address</span><input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
@@ -292,7 +218,98 @@ export function AgentRegistrationPage() {
           <button className="button button-primary auth-submit" disabled={busy || districts.length === 0}>{busy ? 'Submitting application…' : 'Submit agent application'}<ArrowRight size={16} /></button>
           <p className="auth-switch">Already registered? <Link href="/login">Sign in</Link></p>
         </form>
-      )}
     </AuthFrame>
+  );
+}
+
+export function AdminRegistrationPage() {
+  const router = useRouter();
+  const { request } = useSession();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [password, setPassword] = useState('');
+  const [setupCode, setSetupCode] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submitRegistration = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await request('auth/register/admin', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, mobile, password, setupCode, consents: { terms: true, privacy: true } })
+      });
+      router.replace('/login?registered=1');
+    } catch (cause) {
+      setError(showError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AuthFrame title="Administrator signup" description="Create one administrator account with the private setup code configured by the system operator. The code can only be used once.">
+      <form className="auth-form" onSubmit={submitRegistration}>
+        <label className="form-field"><span>Full name</span><input autoComplete="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label className="form-field"><span>Email address</span><input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+        <label className="form-field"><span>Mobile number</span><input type="tel" autoComplete="tel" required pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={mobile} onChange={(event) => setMobile(event.target.value)} /></label>
+        <label className="form-field"><span>Password</span><input type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+        <label className="form-field"><span>Private one-time setup code</span><input type="password" autoComplete="off" minLength={32} required value={setupCode} onChange={(event) => setSetupCode(event.target.value)} /></label>
+        <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the LandTrack terms and privacy notice.</span></label>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Creating administrator…' : 'Create administrator'}<ArrowRight size={16} /></button>
+        <p className="auth-switch">Already have an account? <Link href="/login">Sign in</Link></p>
+      </form>
+    </AuthFrame>
+  );
+}
+
+export function PasswordChangePage() {
+  const { changePassword } = useSession();
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    if (newPassword !== confirmPassword) {
+      setError('The new passwords do not match.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setSuccess('Your password has been changed.');
+    } catch (cause) {
+      setError(showError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card auth-card">
+      <div className="auth-heading"><span className="agent-form-icon"><ShieldCheck size={20} /></span><div><h1>Change password</h1><p>Use your current password to set a new one for this account.</p></div></div>
+      <form className="auth-form" onSubmit={submit}>
+        <label className="form-field"><span>Current password</span><input type="password" autoComplete="current-password" required value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
+        <label className="form-field"><span>New password</span><input type="password" autoComplete="new-password" minLength={10} required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /><small className="form-help">At least 10 characters, including a letter and a number.</small></label>
+        <label className="form-field"><span>Confirm new password</span><input type="password" autoComplete="new-password" minLength={10} required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        {success && <p className="success-panel" role="status">{success}</p>}
+        <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Changing password…' : 'Change password'}<ArrowRight size={16} /></button>
+      </form>
+    </section>
   );
 }

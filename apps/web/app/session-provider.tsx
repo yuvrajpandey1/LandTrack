@@ -29,7 +29,8 @@ type SessionContextValue = {
   loading: boolean;
   error: string | null;
   request: JsonRequest;
-  signIn: (email: string, password: string, totp?: string) => Promise<{ mfaSetupRequired: boolean; role: AccountRole }>;
+  signIn: (email: string, password: string) => Promise<{ role: AccountRole }>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   setupMfa: () => Promise<{ secret: string; otpauthUrl: string }>;
   verifyMfa: (code: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -56,6 +57,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
   if (!response.ok) {
     const record = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    if (response.status >= 500 && !contentType.includes('application/json')) {
+      throw new ApiError(
+        'The LandTrack API is unavailable. Start the API and its database services, then try again.',
+        response.status,
+        'API_UNAVAILABLE'
+      );
+    }
     const message = typeof record.message === 'string'
       ? record.message
       : typeof record.error === 'string'
@@ -99,19 +107,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return parseResponse(response);
   }, [refreshSession]);
 
-  const signIn = useCallback(async (email: string, password: string, totp?: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const response = await sendRequest('auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, ...(totp ? { totp } : {}) })
+      body: JSON.stringify({ email, password })
     });
-    const result = await parseResponse<{ accessToken: string; user: AuthUser; mfaSetupRequired?: boolean }>(response);
+    const result = await parseResponse<{ accessToken: string; user: AuthUser }>(response);
     accessToken.current = result.accessToken;
     setUser(result.user);
     setError(null);
-    return { mfaSetupRequired: result.mfaSetupRequired === true, role: result.user.role };
+    return { role: result.user.role };
   }, []);
 
   const setupMfa = useCallback(() => request<{ secret: string; otpauthUrl: string }>('auth/mfa/setup', { method: 'POST' }), [request]);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    const result = await request<{ accessToken: string }>('me/password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    accessToken.current = result.accessToken;
+  }, [request]);
 
   const verifyMfa = useCallback(async (code: string) => {
     const result = await request<{ accessToken: string }>('auth/mfa/verify', {
@@ -158,7 +174,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refreshSession]);
 
   return (
-    <SessionContext.Provider value={{ user, loading, error, request, signIn, setupMfa, verifyMfa, signOut }}>
+    <SessionContext.Provider value={{ user, loading, error, request, signIn, changePassword, setupMfa, verifyMfa, signOut }}>
       {children}
     </SessionContext.Provider>
   );

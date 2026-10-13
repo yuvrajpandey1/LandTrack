@@ -1,6 +1,6 @@
-import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { AccountStatus, AgentApproval, ConsentType, Role } from '@prisma/client';
+import { AccountStatus, AgentApproval, ConsentType, Prisma, Role } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { createHash, createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
@@ -28,7 +28,7 @@ export class AuthService {
     private readonly audit: AuditService
   ) {}
 
-  async registerNri(input: RegisterNri, ip?: string): Promise<{ status: string }> {
+  async registerNri(input: RegisterNri): Promise<{ status: string }> {
     const user = await this.createUser(input, Role.NRI);
     await this.prisma.consent.createMany({
       data: [
@@ -37,11 +37,11 @@ export class AuthService {
         ...(input.whatsappOptIn ? [{ userId: user.id, type: ConsentType.WHATSAPP, version: '1.0' }] : [])
       ]
     });
-    await this.issueOtp(user.id, user.mobile, ip);
-    return { status: 'PENDING_OTP' };
+    await this.audit.record({ action: 'NRI_ACCOUNT_REGISTERED', entity: 'User', entityId: user.id, after: { role: Role.NRI } });
+    return { status: 'ACTIVE' };
   }
 
-  async registerAgent(input: RegisterAgent, ip?: string): Promise<{ status: string; approval: AgentApproval }> {
+  async registerAgent(input: RegisterAgent): Promise<{ status: string; approval: AgentApproval }> {
     const uniqueAreas = new Set(input.areasCovered);
     const activeAreas = await this.prisma.district.count({ where: { id: { in: [...uniqueAreas] }, active: true } });
     if (activeAreas !== input.areasCovered.length) {
@@ -56,8 +56,68 @@ export class AuthService {
         areasCovered: input.areasCovered
       }
     });
-    await this.issueOtp(user.id, user.mobile, ip);
-    return { status: 'PENDING_OTP', approval: AgentApproval.PENDING };
+    await this.prisma.consent.createMany({
+      data: [
+        { userId: user.id, type: ConsentType.TERMS, version: '1.0' },
+        { userId: user.id, type: ConsentType.PRIVACY, version: '1.0' }
+      ]
+    });
+    await this.audit.record({ action: 'AGENT_ACCOUNT_REGISTERED', entity: 'User', entityId: user.id, after: { role: Role.AGENT, approval: AgentApproval.PENDING } });
+    return { status: 'ACTIVE', approval: AgentApproval.PENDING };
+  }
+
+  async registerAdmin(input: { name: string; email: string; mobile: string; password: string; setupCode: string }): Promise<{ status: string }> {
+    const configuredCode = process.env.ADMIN_SIGNUP_CODE;
+    if (!configuredCode || !this.secretsMatch(configuredCode, input.setupCode)) {
+      if (!configuredCode) {
+        throw new ServiceUnavailableException({ code: 'ADMIN_SIGNUP_UNAVAILABLE', message: 'Administrator signup has not been configured.' });
+      }
+      throw new UnauthorizedException({ code: 'ADMIN_SETUP_CODE_INVALID', message: 'The administrator setup code is invalid or has already been used.' });
+    }
+
+    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+    const setupTokenHash = tokenHash(configuredCode);
+    try {
+      const user = await this.prisma.$transaction(async (transaction) => {
+        await transaction.adminSignupToken.upsert({
+          where: { id: 'initial' },
+          create: { id: 'initial', tokenHash: setupTokenHash },
+          update: {}
+        });
+        const adminCount = await transaction.user.count({
+          where: { role: { in: [Role.ADMIN, Role.AUDITOR] } }
+        });
+        if (adminCount > 0) {
+          throw new ConflictException({ code: 'ADMIN_ALREADY_EXISTS', message: 'Administrator signup is only available before an administrator account exists.' });
+        }
+        const consumed = await transaction.adminSignupToken.updateMany({
+          where: { id: 'initial', tokenHash: setupTokenHash, consumedAt: null },
+          data: { consumedAt: new Date() }
+        });
+        if (consumed.count !== 1) {
+          throw new ConflictException({ code: 'ADMIN_SETUP_CODE_USED', message: 'The administrator setup code has already been used.' });
+        }
+        return transaction.user.create({
+          data: {
+            name: input.name.trim(),
+            email: input.email.toLowerCase(),
+            mobile: input.mobile,
+            passwordHash,
+            role: Role.ADMIN,
+            status: AccountStatus.ACTIVE,
+            consents: { create: [{ type: ConsentType.TERMS }, { type: ConsentType.PRIVACY }] }
+          },
+          select: { id: true }
+        });
+      });
+      await this.audit.record({ action: 'ADMIN_ACCOUNT_REGISTERED', entity: 'User', entityId: user.id, after: { role: Role.ADMIN } });
+      return { status: 'ACTIVE' };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException({ code: 'ACCOUNT_EXISTS', message: 'An account already uses this email address or mobile number.' });
+      }
+      throw error;
+    }
   }
 
   private async createUser(input: { name: string; email: string; mobile: string; password: string; whatsappNumber?: string; originCountry?: string; currentCountry?: string; timeZone?: string }, role: Role) {
@@ -71,7 +131,7 @@ export class AuthService {
         mobile: input.mobile,
         passwordHash,
         role,
-        status: AccountStatus.PENDING_OTP,
+        status: AccountStatus.ACTIVE,
         whatsappNumber: input.whatsappNumber,
         originCountry: input.originCountry,
         currentCountry: input.currentCountry,
@@ -104,12 +164,22 @@ export class AuthService {
     if (mobileCount >= 5 || ipCount >= 10) {
       throw new HttpException({ code: 'OTP_RATE_LIMIT', message: 'The OTP request limit has been reached. Try again later.' }, HttpStatus.TOO_MANY_REQUESTS);
     }
-    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const usesTwilioVerify = process.env.SMS_PROVIDER === 'twilio_verify';
+    const code = usesTwilioVerify ? undefined : String(randomInt(0, 1_000_000)).padStart(6, '0');
     await this.prisma.otpChallenge.create({
-      data: { userId, ip, codeHash: otpHash(code), expiresAt: new Date(now.getTime() + 5 * 60_000) }
+      data: {
+        userId,
+        ip,
+        codeHash: otpHash(code ?? randomUUID()),
+        expiresAt: new Date(now.getTime() + (usesTwilioVerify ? 10 : 5) * 60_000)
+      }
     });
     if (process.env.SMS_PROVIDER === 'fake') {
-      if (process.env.NODE_ENV !== 'production') console.info(`Development OTP for ${mobile.replace(/.(?=.{3})/g, '*')}: ${code}`);
+      if (process.env.NODE_ENV !== 'production') console.info(`Development OTP for ${mobile.replace(/.(?=.{3})/g, '*')}: ${code!}`);
+      return;
+    }
+    if (usesTwilioVerify) {
+      await this.requestTwilioVerification('Verifications', { To: mobile, Channel: 'sms' });
       return;
     }
     const response = await fetch(process.env.SMS_API_URL!, {
@@ -128,9 +198,9 @@ export class AuthService {
       orderBy: { createdAt: 'desc' }
     });
     if (!challenge) throw new UnauthorizedException({ code: 'OTP_INVALID', message: 'The OTP is invalid or expired.' });
-    const actual = Buffer.from(challenge.codeHash);
-    const expected = Buffer.from(otpHash(code));
-    const valid = actual.length === expected.length && timingSafeEqual(actual, expected);
+    const valid = process.env.SMS_PROVIDER === 'twilio_verify'
+      ? await this.verifyTwilioCode(mobile, code)
+      : this.verifyLocalCode(challenge.codeHash, code);
     if (!valid) {
       await this.prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
       throw new UnauthorizedException({ code: 'OTP_INVALID', message: 'The OTP is invalid or expired.' });
@@ -143,24 +213,95 @@ export class AuthService {
     return { status: 'ACTIVE' };
   }
 
-  async login(email: string, password: string, totp?: string): Promise<{ accessToken: string; refreshToken: string; user: object; mfaSetupRequired?: boolean }> {
+  private verifyLocalCode(codeHash: string, code: string): boolean {
+    const actual = Buffer.from(codeHash);
+    const expected = Buffer.from(otpHash(code));
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  }
+
+  private async verifyTwilioCode(mobile: string, code: string): Promise<boolean> {
+    try {
+      const result = await this.requestTwilioVerification('VerificationCheck', { To: mobile, Code: code });
+      return result.status === 'approved';
+    } catch (error) {
+      if (error instanceof HttpException && error.getStatus() === HttpStatus.NOT_FOUND) return false;
+      throw error;
+    }
+  }
+
+  private async requestTwilioVerification(
+    resource: 'Verifications' | 'VerificationCheck',
+    values: { To: string; Channel?: 'sms'; Code?: string }
+  ): Promise<{ status: string }> {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID!;
+    const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID!;
+    const apiKeySid = process.env.TWILIO_API_KEY_SID;
+    const username = apiKeySid ?? accountSid;
+    const password = apiKeySid ? process.env.TWILIO_API_KEY_SECRET! : process.env.TWILIO_AUTH_TOKEN!;
+    const credentials = Buffer.from(`${username}:${password}`).toString('base64');
+    const response = await fetch(
+      `https://verify.twilio.com/v2/Services/${encodeURIComponent(serviceSid)}/${resource}`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Basic ${credentials}`,
+          'content-type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams(values)
+      }
+    );
+    if (!response.ok) {
+      throw new HttpException(
+        { code: 'SMS_PROVIDER_UNAVAILABLE', message: 'SMS verification could not be completed. Please try again later.' },
+        response.status === 404 ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY
+      );
+    }
+    const result: unknown = await response.json();
+    if (!result || typeof result !== 'object' || !('status' in result) || typeof result.status !== 'string') {
+      throw new HttpException(
+        { code: 'SMS_PROVIDER_INVALID_RESPONSE', message: 'SMS verification provider returned an invalid response.' },
+        HttpStatus.BAD_GATEWAY
+      );
+    }
+    return { status: result.status };
+  }
+
+  async login(email: string, password: string): Promise<{ accessToken: string; refreshToken: string; user: object }> {
     const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user || !(await argon2.verify(user.passwordHash, password))) {
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email or password is incorrect.' });
     }
-    if (user.status !== AccountStatus.ACTIVE) throw new UnauthorizedException({ code: 'ACCOUNT_INACTIVE', message: 'Verify your mobile number before signing in.' });
-    if (user.role === Role.ADMIN || user.role === Role.AUDITOR) {
-      if (user.mfaEnabled && (!totp || !user.mfaSecret || !verifyTotp(user.mfaSecret, totp))) {
-        throw new UnauthorizedException({ code: 'MFA_INVALID', message: 'A valid authenticator code is required.' });
-      }
-      const tokens = await this.createTokens(user.id, user.role, user.email, !user.mfaEnabled);
-      return {
-        ...tokens,
-        user: this.publicUser(user),
-        ...(!user.mfaEnabled ? { mfaSetupRequired: true } : {})
-      };
-    }
+    if (user.status !== AccountStatus.ACTIVE) throw new UnauthorizedException({ code: 'ACCOUNT_INACTIVE', message: 'This account is inactive. Contact LandTrack support.' });
     return { ...(await this.createTokens(user.id, user.role, user.email)), user: this.publicUser(user) };
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ accessToken: string; refreshToken: string }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !(await argon2.verify(user.passwordHash, currentPassword))) {
+      throw new UnauthorizedException({ code: 'CURRENT_PASSWORD_INVALID', message: 'The current password is incorrect.' });
+    }
+    if (await argon2.verify(user.passwordHash, newPassword)) {
+      throw new BadRequestException({ code: 'PASSWORD_UNCHANGED', message: 'Choose a new password that is different from your current password.' });
+    }
+
+    const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
+    const refreshToken = randomUUID() + randomUUID();
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+      this.prisma.refreshToken.create({
+        data: { userId, tokenHash: tokenHash(refreshToken), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000) }
+      })
+    ]);
+    const accessToken = await this.jwt.signAsync({ sub: user.id, role: user.role, email: user.email }, { expiresIn: '15m' });
+    await this.audit.record({ actorId: user.id, actorRole: user.role, action: 'PASSWORD_CHANGED', entity: 'User', entityId: user.id });
+    return { accessToken, refreshToken };
+  }
+
+  private secretsMatch(expected: string, actual: string): boolean {
+    const expectedHash = Buffer.from(tokenHash(expected), 'hex');
+    const actualHash = Buffer.from(tokenHash(actual), 'hex');
+    return timingSafeEqual(expectedHash, actualHash);
   }
 
   async createTokens(userId: string, role: Role, email: string, mfaPending = false): Promise<{ accessToken: string; refreshToken: string }> {
@@ -186,11 +327,9 @@ export class AuthService {
       this.prisma.refreshToken.update({ where: { id: existing.id }, data: { revokedAt: new Date() } }),
       this.prisma.refreshToken.create({ data: { userId: existing.userId, tokenHash: tokenHash(nextToken), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000) } })
     ]);
-    const pending = (existing.user.role === Role.ADMIN || existing.user.role === Role.AUDITOR) && !existing.user.mfaEnabled;
     return {
       accessToken: await this.jwt.signAsync({
-        sub: existing.userId, role: existing.user.role, email: existing.user.email,
-        ...(pending ? { mfaPending: true } : {})
+        sub: existing.userId, role: existing.user.role, email: existing.user.email
       }, { expiresIn: '15m' }),
       refreshToken: nextToken
     };

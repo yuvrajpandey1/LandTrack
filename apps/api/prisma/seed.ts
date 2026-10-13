@@ -57,6 +57,22 @@ async function main() {
     const exists = await prisma.slotTemplate.findFirst({ where: { dayOfWeek: template.dayOfWeek, startTime: template.startTime } });
     if (!exists) await prisma.slotTemplate.create({ data: template });
   }
+
+  const district = await prisma.district.upsert({
+    where: { name: 'Hyderabad' },
+    update: {},
+    create: { name: 'Hyderabad' }
+  });
+  const taluka = await prisma.taluka.upsert({
+    where: { districtId_name: { districtId: district.id, name: 'Demo Mandal' } },
+    update: {},
+    create: { name: 'Demo Mandal', districtId: district.id }
+  });
+  await prisma.village.upsert({
+    where: { talukaId_name: { talukaId: taluka.id, name: 'Demo Village' } },
+    update: {},
+    create: { name: 'Demo Village', talukaId: taluka.id }
+  });
 }
 
 main()
