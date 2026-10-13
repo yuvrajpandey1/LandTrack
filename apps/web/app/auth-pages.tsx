@@ -12,9 +12,9 @@ type District = { id: string; name: string };
 function AuthFrame({ children, title, description }: { children: React.ReactNode; title: string; description: string }) {
   return (
     <main className="auth-page">
-      <Link href="/" className="brand auth-brand" aria-label="LandTrack home">
+      <Link href="/" className="brand auth-brand" aria-label="NRI Land Tracking System home">
         <span className="brand-mark"><LandPlot size={21} strokeWidth={2.4} /></span>
-        <span>LandTrack</span>
+        <span>NRI Land Tracking System</span>
       </Link>
       <section className="card auth-card">
         <div className="auth-heading">

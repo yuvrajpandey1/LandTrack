@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 import { SessionProvider } from './session-provider';
 
 export const metadata: Metadata = {
-  title: 'LandTrack | Property management for NRIs',
-  description: 'Register and track Hyderabad property, appointments, and communications with LandTrack.'
+  title: 'NRI Land Tracking System',
+  description: 'Register and track Hyderabad property, appointments, and communications with the NRI Land Tracking System.'
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

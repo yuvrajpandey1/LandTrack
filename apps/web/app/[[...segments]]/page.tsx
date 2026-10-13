@@ -169,9 +169,9 @@ const statusClasses: Record<PropertyStatus, string> = {
 function Header({ role, name, onSignOut }: { role: Role; name: string; onSignOut: () => void }) {
   return (
     <header className="topbar">
-      <Link href="/" className="brand" aria-label="LandTrack home">
+      <Link href="/" className="brand" aria-label="NRI Land Tracking System home">
         <span className="brand-mark"><LandPlot size={21} strokeWidth={2.4} /></span>
-        <span>LandTrack</span>
+        <span>NRI Land Tracking System</span>
         <span className="region-pill">HYDERABAD</span>
       </Link>
       <div className="topbar-actions">
