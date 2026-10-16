@@ -49,6 +49,24 @@ async function sendRequest(path: string, options: RequestInit = {}, accessToken?
   });
 }
 
+async function sendWithTransientRetry(path: string, options: RequestInit, accessToken?: string): Promise<Response> {
+  if ((options.method ?? 'GET').toUpperCase() !== 'GET') {
+    return sendRequest(path, options, accessToken);
+  }
+
+  const retryDelays = [750, 1500];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await sendRequest(path, options, accessToken);
+      if (![502, 503, 504].includes(response.status) || attempt === retryDelays.length) return response;
+    } catch (cause) {
+      if (!(cause instanceof TypeError) || options.signal?.aborted || attempt === retryDelays.length) throw cause;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, retryDelays[attempt]));
+  }
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get('content-type') ?? '';
   const body: unknown = contentType.includes('application/json')
@@ -59,7 +77,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
     const record = body && typeof body === 'object' ? body as Record<string, unknown> : {};
     if (response.status >= 500 && !contentType.includes('application/json')) {
       throw new ApiError(
-        'The LandTrack API is unavailable. Start the API and its database services, then try again.',
+        'The LandTrack API is temporarily unavailable. Please try again shortly. If this keeps happening, check the API service and database.',
         response.status,
         'API_UNAVAILABLE'
       );
@@ -94,7 +112,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const request = useCallback<JsonRequest>(async (path, options = {}) => {
     let token = accessToken.current;
-    let response = await sendRequest(path, options, token ?? undefined);
+    let response = await sendWithTransientRetry(path, options, token ?? undefined);
     if (response.status === 401 && token) {
       token = await refreshSession();
       if (!token) {
@@ -102,7 +120,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setUser(null);
         throw new ApiError('Your session has expired. Sign in again.', 401, 'SESSION_EXPIRED');
       }
-      response = await sendRequest(path, options, token);
+      response = await sendWithTransientRetry(path, options, token);
     }
     return parseResponse(response);
   }, [refreshSession]);
