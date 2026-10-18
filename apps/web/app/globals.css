@@ -39,7 +39,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .auth-region { margin: 0; color: #8993a3; font-size: 10px; }
 .mfa-secret { padding: 12px; margin: 0; border: 1px solid #dfe4eb; border-radius: 6px; background: #f8f9fb; color: #263654; font-family: ui-monospace, monospace; font-size: 14px; letter-spacing: .08em; text-align: center; overflow-wrap: anywhere; }
 .topbar { height: 72px; background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 34px; position: sticky; top: 0; z-index: 10; }
-.brand { display: flex; align-items: center; gap: 11px; color: var(--ink); font-weight: 760; font-size: 21px; letter-spacing: -.55px; }
+.brand { display: flex; align-items: center; gap: 11px; color: var(--ink); font-weight: 760; font-size: 17px; letter-spacing: -.45px; }
+.brand-name { white-space: nowrap; }
 .brand-mark { height: 35px; width: 35px; border-radius: 10px; background: var(--blue); color: white; display: grid; place-items: center; }
 .region-pill { margin-left: 3px; border-radius: 5px; background: #eff4ff; color: #315bc0; font-size: 9px; letter-spacing: .09em; padding: 5px 7px; font-weight: 760; }
 .topbar-actions { display: flex; align-items: center; gap: 19px; }
@@ -276,7 +277,7 @@ td { padding: 11px 13px; border-top: 1px solid #eef0f4; color: #697386; font-siz
 }
 @media (max-width: 700px) {
   .auth-card { padding: 18px; }
-  .topbar { height: 59px; padding: 0 14px; }.brand { font-size: 17px; gap: 8px; }.brand-mark { width: 31px; height: 31px; }.region-pill { display: none; }.topbar-actions { gap: 9px; }.search-box { width: 36px; padding: 0 9px; border: 0; background: transparent; }.search-box input, .search-box kbd, .role-select > select, .role-select > svg { display: none; }.role-select { gap: 0; }.avatar { width: 31px; height: 31px; }.notification-button { width: 30px; }
+  .topbar { height: 59px; padding: 0 14px; }.brand { font-size: 13px; gap: 8px; }.brand-mark { width: 31px; height: 31px; }.region-pill { display: none; }.topbar-actions { gap: 9px; }.search-box { width: 36px; padding: 0 9px; border: 0; background: transparent; }.search-box input, .search-box kbd, .role-select > select, .role-select > svg { display: none; }.role-select { gap: 0; }.avatar { width: 31px; height: 31px; }.notification-button { width: 30px; }
   .agent-register-link { font-size: 9px; }
   .agent-heading-actions { flex-wrap: wrap; justify-content: flex-start; }
   .agent-heading-actions .button { padding: 0 9px; font-size: 9px; }

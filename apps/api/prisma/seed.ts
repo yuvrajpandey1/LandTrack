@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { AccountStatus, Prisma, Role } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { PrismaClient } from '@prisma/client';
+import { hyderabadMandals } from './hyderabad-location-masters';
+import nearbyLocationMasters from './telangana-nearby-location-masters.json';
 
 const prisma = new PrismaClient();
 
@@ -19,27 +21,37 @@ const settings: Record<string, Prisma.InputJsonValue> = {
 async function main() {
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.ADMIN_INITIAL_PASSWORD;
-  if (!email || !password || password.length < 12) {
-    throw new Error('Set ADMIN_EMAIL and an ADMIN_INITIAL_PASSWORD of at least 12 characters before seeding.');
+  if (password && password.length < 12) {
+    throw new Error('ADMIN_INITIAL_PASSWORD must be at least 12 characters.');
   }
 
-  const existingAdmin = await prisma.user.findUnique({ where: { email } });
-  if (!existingAdmin) {
-    const mobile = process.env.ADMIN_MOBILE;
-    if (!mobile || !/^\+[1-9]\d{7,14}$/.test(mobile)) {
-      throw new Error('Set ADMIN_MOBILE to a unique E.164 phone number before creating the initial administrator.');
-    }
-    await prisma.user.create({
-      data: {
-        name: process.env.ADMIN_NAME?.trim() || 'LandTrack Administrator',
-        email,
-        mobile,
-        passwordHash: await argon2.hash(password, { type: argon2.argon2id }),
-        role: Role.ADMIN,
-        status: AccountStatus.ACTIVE,
-        mobileVerifiedAt: new Date()
+  if (password && !email) {
+    throw new Error('Set ADMIN_EMAIL when using ADMIN_INITIAL_PASSWORD to seed the initial administrator.');
+  }
+
+  if (!password && (!process.env.ADMIN_SIGNUP_CODE || process.env.ADMIN_SIGNUP_CODE.length < 32)) {
+    throw new Error('Set ADMIN_INITIAL_PASSWORD or configure an ADMIN_SIGNUP_CODE of at least 32 characters before seeding.');
+  }
+
+  if (password && email) {
+    const existingAdmin = await prisma.user.findUnique({ where: { email } });
+    if (!existingAdmin) {
+      const mobile = process.env.ADMIN_MOBILE;
+      if (!mobile || !/^\+[1-9]\d{7,14}$/.test(mobile)) {
+        throw new Error('Set ADMIN_MOBILE to a unique E.164 phone number before creating the initial administrator.');
       }
-    });
+      await prisma.user.create({
+        data: {
+          name: process.env.ADMIN_NAME?.trim() || 'NRI Land Tracking System Administrator',
+          email,
+          mobile,
+          passwordHash: await argon2.hash(password, { type: argon2.argon2id }),
+          role: Role.ADMIN,
+          status: AccountStatus.ACTIVE,
+          mobileVerifiedAt: new Date()
+        }
+      });
+    }
   }
 
   for (const [key, value] of Object.entries(settings)) {
@@ -58,26 +70,45 @@ async function main() {
     if (!exists) await prisma.slotTemplate.create({ data: template });
   }
 
-  const district = await prisma.district.upsert({
-    where: { name: 'Hyderabad' },
-    update: {},
-    create: { name: 'Hyderabad' }
+  const locationDistricts = [
+    { name: 'Hyderabad', mandals: hyderabadMandals },
+    ...nearbyLocationMasters.districts
+  ];
+  for (const districtData of locationDistricts) {
+    const district = await prisma.district.upsert({
+      where: { name: districtData.name },
+      update: { active: true },
+      create: { name: districtData.name }
+    });
+    for (const mandalData of districtData.mandals) {
+      const taluka = await prisma.taluka.upsert({
+        where: { districtId_name: { districtId: district.id, name: mandalData.name } },
+        update: { active: true },
+        create: { name: mandalData.name, districtId: district.id }
+      });
+      for (const villageName of mandalData.villages) {
+        await prisma.village.upsert({
+          where: { talukaId_name: { talukaId: taluka.id, name: villageName } },
+          update: { active: true },
+          create: { name: villageName, talukaId: taluka.id }
+        });
+      }
+    }
+  }
+
+  const district = await prisma.district.findUniqueOrThrow({ where: { name: 'Hyderabad' } });
+  const demoMandal = await prisma.taluka.findUnique({
+    where: { districtId_name: { districtId: district.id, name: 'Demo Mandal' } }
   });
-  const taluka = await prisma.taluka.upsert({
-    where: { districtId_name: { districtId: district.id, name: 'Demo Mandal' } },
-    update: {},
-    create: { name: 'Demo Mandal', districtId: district.id }
-  });
-  await prisma.village.upsert({
-    where: { talukaId_name: { talukaId: taluka.id, name: 'Demo Village' } },
-    update: {},
-    create: { name: 'Demo Village', talukaId: taluka.id }
-  });
+  if (demoMandal) {
+    await prisma.village.updateMany({ where: { talukaId: demoMandal.id }, data: { active: false } });
+    await prisma.taluka.update({ where: { id: demoMandal.id }, data: { active: false } });
+  }
 }
 
 main()
   .catch((error: unknown) => {
-    console.error('LandTrack database seed failed:', error);
+    console.error('NRI Land Tracking System database seed failed:', error);
     process.exitCode = 1;
   })
   .finally(async () => prisma.$disconnect());

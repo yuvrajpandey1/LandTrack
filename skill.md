@@ -1,13 +1,13 @@
-# LandTrack — MVP 1 Development Specification (Agent-Ready)
+# NRI Land Tracking System — MVP 1 Development Specification (Agent-Ready)
 **Version 1.3 | October 2026 | Confidential**
 
-> **Instructions to the coding agent.** This file is the single source of truth for building LandTrack MVP 1. Build exactly what is described here, in the order given in Section 15. Use TypeScript in strict mode everywhere. Where a detail is marked **Default**, implement that default and make it configurable. Do not add features marked out of scope. Do not invent costing, pricing or vendor lock-in; every external service sits behind an interface so it can be swapped.
+> **Instructions to the coding agent.** This file is the single source of truth for building the NRI Land Tracking System MVP 1. Build exactly what is described here, in the order given in Section 15. Use TypeScript in strict mode everywhere. Where a detail is marked **Default**, implement that default and make it configurable. Do not add features marked out of scope. Do not invent costing, pricing or vendor lock-in; every external service sits behind an interface so it can be swapped.
 
 ---
 
 ## 1. Product Summary
 
-**LandTrack** is a web portal for Non-Resident Indians (NRIs) to register land and properties in **Hyderabad, Telangana (MVP 1 launch region only)**, pay a minimum registration charge online, and communicate with a Hyderabad-based agent through appointments, in-portal chat, WhatsApp and browser audio/video calls. Admin assigns agents. An Auditor dashboard gives read-only visibility of properties, payments and all communication.
+**NRI Land Tracking System** is a web portal for Non-Resident Indians (NRIs) to register land and properties in **Hyderabad, Telangana (MVP 1 launch region only)**, pay a minimum registration charge online, and communicate with a Hyderabad-based agent through appointments, in-portal chat, WhatsApp and browser audio/video calls. Admin assigns agents. An Auditor dashboard gives read-only visibility of properties, payments and all communication.
 
 **Modules**
 1. **User (NRI) portal**
@@ -708,7 +708,7 @@ Build milestone by milestone. Each milestone ends with passing tests and working
 
 | Reference | Use in build |
 |---|---|
-| LandTrack mobile mockup | Add land form fields and calendar plus time-slot picker (replace $ and acres with INR and Indian units, replace location with the Hyderabad cascade) |
+| NRI Land Tracking System mobile mockup | Add land form fields and calendar plus time-slot picker (replace $ and acres with INR and Indian units, replace location with the Hyderabad cascade) |
 | `landtrack_site_visit_wireframe.html` | NRI web layout: sidebar navigation, dashboard cards, property table, detail page, schedule flow, confirmation screen |
 | RealEstate Admin dashboard image | Admin and Audit dashboard layout: KPI cards, recent submissions table, pending items, property map; **use the light theme, not the dark one** |
 | RealEstate Pro audit screen | Layout idea for the Audit property detail page (details panel plus status timeline); the site-audit checklist itself is out of scope for MVP 1 |

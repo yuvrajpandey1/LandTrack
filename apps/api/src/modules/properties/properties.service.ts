@@ -5,7 +5,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { StorageService } from '../../providers/services/storage.service';
 
 type PropertyInput = {
-  name: string; type: PropertyType; surveyNumber: string; districtId: string; talukaId: string;
+  name: string; type: PropertyType; surveyNumber: string; city?: string; districtId: string; talukaId: string;
   villageId: string; address?: string; landmark?: string; latitude?: number; longitude?: number; area: number; areaUnit: AreaUnit;
   ownership: OwnershipType; intent?: Intent; expectedPrice?: number; notes?: string;
 };
@@ -108,8 +108,8 @@ export class PropertiesService {
   }
 
   async create(input: PropertyInput, ownerId: string, actor: { role: Role; ip?: string; userAgent?: string }) {
-    await this.validateLocation(input);
-    const property = await this.prisma.property.create({ data: this.propertyData(input, ownerId) });
+    const districtName = await this.validateLocation(input);
+    const property = await this.prisma.property.create({ data: this.propertyData(input, ownerId, districtName) });
     await this.audit.record({ actorId: ownerId, actorRole: actor.role, action: 'PROPERTY_CREATED', entity: 'Property', entityId: property.id, after: { status: property.status }, ip: actor.ip, userAgent: actor.userAgent });
     return property;
   }
@@ -227,11 +227,13 @@ export class PropertiesService {
     return property;
   }
 
-  private async validateLocation(input: Pick<PropertyInput, 'districtId' | 'talukaId' | 'villageId'>): Promise<void> {
+  private async validateLocation(input: Pick<PropertyInput, 'districtId' | 'talukaId' | 'villageId'>): Promise<string> {
     const village = await this.prisma.village.findFirst({
-      where: { id: input.villageId, active: true, talukaId: input.talukaId, taluka: { active: true, districtId: input.districtId, district: { active: true } } }
+      where: { id: input.villageId, active: true, talukaId: input.talukaId, taluka: { active: true, districtId: input.districtId, district: { active: true } } },
+      select: { taluka: { select: { district: { select: { name: true } } } } }
     });
     if (!village) throw new BadRequestException({ code: 'INVALID_LOCATION', message: 'The village must belong to the selected active taluka and district.' });
+    return village.taluka.district.name;
   }
 
   private async ownedProperty(id: string, userId: string, role: Role) {
@@ -241,14 +243,14 @@ export class PropertiesService {
     return property;
   }
 
-  private propertyData(input: PropertyInput, ownerId: string): Prisma.PropertyUncheckedCreateInput {
+  private propertyData(input: PropertyInput, ownerId: string, districtName: string): Prisma.PropertyUncheckedCreateInput {
     return {
       ownerId, name: input.name.trim(), type: input.type, surveyNumber: input.surveyNumber.trim(),
       districtId: input.districtId, talukaId: input.talukaId, villageId: input.villageId,
       address: input.address, landmark: input.landmark, area: input.area, areaUnit: input.areaUnit,
       latitude: input.latitude, longitude: input.longitude,
       ownership: input.ownership, intent: input.intent, expectedPrice: input.expectedPrice,
-      notes: input.notes, city: 'Hyderabad', state: 'Telangana'
+      notes: input.notes, city: input.city?.trim() || districtName, state: 'Telangana'
     };
   }
 }

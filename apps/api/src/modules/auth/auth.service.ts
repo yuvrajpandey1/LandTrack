@@ -185,7 +185,7 @@ export class AuthService {
     const response = await fetch(process.env.SMS_API_URL!, {
       method: 'POST',
       headers: { authorization: `Bearer ${process.env.SMS_API_TOKEN!}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ to: mobile, message: `Your LandTrack verification code is ${code}. It expires in 5 minutes.` })
+      body: JSON.stringify({ to: mobile, message: `Your NRI Land Tracking System verification code is ${code}. It expires in 5 minutes.` })
     });
     if (!response.ok) throw new Error(`SMS provider rejected OTP delivery (${response.status}).`);
   }
@@ -271,7 +271,7 @@ export class AuthService {
     if (!user || !(await argon2.verify(user.passwordHash, password))) {
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email or password is incorrect.' });
     }
-    if (user.status !== AccountStatus.ACTIVE) throw new UnauthorizedException({ code: 'ACCOUNT_INACTIVE', message: 'This account is inactive. Contact LandTrack support.' });
+    if (user.status !== AccountStatus.ACTIVE) throw new UnauthorizedException({ code: 'ACCOUNT_INACTIVE', message: 'This account is inactive. Contact NRI Land Tracking System support.' });
     return { ...(await this.createTokens(user.id, user.role, user.email)), user: this.publicUser(user) };
   }
 
@@ -347,7 +347,7 @@ export class AuthService {
     if (user.role !== Role.ADMIN && user.role !== Role.AUDITOR) throw new UnauthorizedException({ code: 'MFA_ROLE_REQUIRED', message: 'MFA setup is available only to Admin and Auditor accounts.' });
     const secret = createTotpSecret();
     await this.prisma.user.update({ where: { id: userId }, data: { mfaSecret: secret, mfaEnabled: false } });
-    return { secret, otpauthUrl: `otpauth://totp/LandTrack:${encodeURIComponent(user.email)}?secret=${secret}&issuer=LandTrack&algorithm=SHA1&digits=6&period=30` };
+    return { secret, otpauthUrl: `otpauth://totp/NRI%20Land%20Tracking%20System:${encodeURIComponent(user.email)}?secret=${secret}&issuer=NRI%20Land%20Tracking%20System&algorithm=SHA1&digits=6&period=30` };
   }
 
   async verifyMfa(userId: string, code: string): Promise<{ accessToken: string }> {

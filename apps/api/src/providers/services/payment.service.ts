@@ -24,7 +24,7 @@ export class PaymentService {
         amount: amountInr * 100,
         currency: 'INR',
         reference_id: receipt,
-        description: 'LandTrack property registration',
+        description: 'NRI Land Tracking System property registration',
         accept_partial: false,
         reminder_enable: false,
         notify: { sms: false, email: false },

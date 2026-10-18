@@ -79,7 +79,7 @@ export function AppointmentBooking() {
   };
 
   if (appointment) {
-    return <section className="card success-card"><div className="success-panel"><span><Check size={22} /></span><div><h2>Appointment requested</h2><p>Your request is saved. The LandTrack team will assign an agent and confirm the appointment.</p></div></div><div className="summary-item"><span>Reference</span><strong>{appointment.id}</strong></div><div className="summary-item"><span>Time (IST)</span><strong>{new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(new Date(appointment.startUtc))}</strong></div><div className="summary-item"><span>Mode</span><strong>{appointment.mode.replace('_', ' ')}</strong></div></section>;
+    return <section className="card success-card"><div className="success-panel"><span><Check size={22} /></span><div><h2>Appointment requested</h2><p>Your request is saved. The NRI Land Tracking System team will assign an agent and confirm the appointment.</p></div></div><div className="summary-item"><span>Reference</span><strong>{appointment.id}</strong></div><div className="summary-item"><span>Time (IST)</span><strong>{new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(new Date(appointment.startUtc))}</strong></div><div className="summary-item"><span>Mode</span><strong>{appointment.mode.replace('_', ' ')}</strong></div></section>;
   }
 
   return (

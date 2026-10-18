@@ -80,7 +80,7 @@ export class PaymentsService {
       action: 'PAYMENT_SUCCEEDED', entity: 'Payment', entityId: payment.id,
       after: { status: PaymentStatus.SUCCESS, providerPaymentId: entity.paymentId }
     });
-    await this.notifications.queueEmail(payment.user.email, 'LandTrack registration payment received', `We received your INR ${payment.amount.toString()} property registration payment for ${payment.property.name}. Receipt: LT-${payment.id.slice(0, 8).toUpperCase()}.`, payment.userId);
+    await this.notifications.queueEmail(payment.user.email, 'NRI Land Tracking System registration payment received', `We received your INR ${payment.amount.toString()} property registration payment for ${payment.property.name}. Receipt: LT-${payment.id.slice(0, 8).toUpperCase()}.`, payment.userId);
     if (payment.user.whatsappNumber) {
       await this.notifications.queueWhatsApp(payment.userId, payment.user.whatsappNumber, 'payment_receipt', { propertyName: payment.property.name, amount: String(payment.amount) });
     }

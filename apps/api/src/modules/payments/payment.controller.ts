@@ -43,7 +43,7 @@ export class PaymentController {
       response.status(404).send('Not found');
       return;
     }
-    response.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>LandTrack sandbox checkout</title></head><body style="font:16px system-ui;max-width:480px;margin:15vh auto;padding:24px;color:#172554"><h1>Sandbox checkout</h1><p>This local-only checkout does not collect card data or move money.</p><form method="post" action="/api/v1/dev/checkout/${encodeURIComponent(orderId)}/complete"><button style="background:#2457d6;border:0;border-radius:8px;color:white;padding:12px 18px;font:inherit">Simulate successful payment</button></form><p><a href="/api/v1/dev/checkout/${encodeURIComponent(orderId)}/fail">Simulate failed payment</a></p></body></html>`);
+    response.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>NRI Land Tracking System sandbox checkout</title></head><body style="font:16px system-ui;max-width:480px;margin:15vh auto;padding:24px;color:#172554"><h1>Sandbox checkout</h1><p>This local-only checkout does not collect card data or move money.</p><form method="post" action="/api/v1/dev/checkout/${encodeURIComponent(orderId)}/complete"><button style="background:#2457d6;border:0;border-radius:8px;color:white;padding:12px 18px;font:inherit">Simulate successful payment</button></form><p><a href="/api/v1/dev/checkout/${encodeURIComponent(orderId)}/fail">Simulate failed payment</a></p></body></html>`);
   }
 
   @Public()
@@ -60,6 +60,6 @@ export class PaymentController {
       response.status(404).send('Not found');
       return;
     }
-    response.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sandbox payment cancelled</title></head><body style="font:16px system-ui;max-width:480px;margin:15vh auto;padding:24px;color:#172554"><h1>Payment not completed</h1><p>You can return to LandTrack and retry checkout.</p><a href="${process.env.APP_URL}/app/payments">Return to LandTrack</a></body></html>`);
+    response.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sandbox payment cancelled</title></head><body style="font:16px system-ui;max-width:480px;margin:15vh auto;padding:24px;color:#172554"><h1>Payment not completed</h1><p>You can return to the NRI Land Tracking System and retry checkout.</p><a href="${process.env.APP_URL}/app/payments">Return to NRI Land Tracking System</a></body></html>`);
   }
 }

@@ -56,7 +56,7 @@ export function PaymentHistory() {
         )}
         <div className="table-footer"><span>{payments.length} payment records</span>{payments.some((payment) => payment.status === 'FAILED') && <Link href="/app/properties" className="text-action">Return to properties<ArrowRight size={14} /></Link>}</div>
       </section>
-      <aside className="card next-appointment payment-note"><Wallet size={20} /><h2>Secure hosted checkout</h2><p>Payment card details are collected by the payment provider and are not stored by LandTrack.</p></aside>
+      <aside className="card next-appointment payment-note"><Wallet size={20} /><h2>Secure hosted checkout</h2><p>Payment card details are collected by the payment provider and are not stored by the NRI Land Tracking System.</p></aside>
     </>
   );
 }

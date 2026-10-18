@@ -115,7 +115,7 @@ export class AppointmentsService {
       return created;
     }, { isolationLevel: 'Serializable' });
     if (sendNotifications) {
-      await this.notifications.queueEmail(process.env.ADMIN_NOTIFY_EMAIL!, 'New LandTrack appointment request', `${appointment.nri.name} requested a ${appointment.mode} appointment for ${appointment.property.name} at ${appointment.startUtc.toISOString()}.`);
+      await this.notifications.queueEmail(process.env.ADMIN_NOTIFY_EMAIL!, 'New NRI Land Tracking System appointment request', `${appointment.nri.name} requested a ${appointment.mode} appointment for ${appointment.property.name} at ${appointment.startUtc.toISOString()}.`);
       if (appointment.nri.whatsappNumber) {
         await this.notifications.queueWhatsApp(appointment.nri.id, appointment.nri.whatsappNumber, 'appointment_requested_admin', { propertyName: appointment.property.name });
       }
@@ -177,7 +177,7 @@ export class AppointmentsService {
       throw new ConflictException({ code: 'APPOINTMENT_CHANGED', message: 'The appointment changed while it was being rescheduled. Refresh and try again.' });
     }
     const moved = await this.prisma.appointment.findUniqueOrThrow({ where: { id } });
-    await this.notifications.queueEmail(process.env.ADMIN_NOTIFY_EMAIL!, 'New LandTrack appointment request', `${next.nri.name} rescheduled a ${next.mode} appointment for ${next.property.name} at ${next.startUtc.toISOString()}.`);
+    await this.notifications.queueEmail(process.env.ADMIN_NOTIFY_EMAIL!, 'New NRI Land Tracking System appointment request', `${next.nri.name} rescheduled a ${next.mode} appointment for ${next.property.name} at ${next.startUtc.toISOString()}.`);
     if (next.nri.whatsappNumber) {
       await this.notifications.queueWhatsApp(next.nri.id, next.nri.whatsappNumber, 'appointment_requested_admin', { propertyName: next.property.name });
     }
@@ -234,8 +234,8 @@ export class AppointmentsService {
       });
       return updated;
     });
-    await this.notifications.queueEmail(result.nri.email, 'LandTrack agent assigned', `${agent.name} has been assigned to your appointment for ${result.property.name}.`, result.nri.id);
-    await this.notifications.queueEmail(agent.email, 'New LandTrack appointment assigned', `You have been assigned an appointment for ${result.property.name} at ${result.startUtc.toISOString()}.`, agent.id);
+    await this.notifications.queueEmail(result.nri.email, 'NRI Land Tracking System agent assigned', `${agent.name} has been assigned to your appointment for ${result.property.name}.`, result.nri.id);
+    await this.notifications.queueEmail(agent.email, 'New NRI Land Tracking System appointment assigned', `You have been assigned an appointment for ${result.property.name} at ${result.startUtc.toISOString()}.`, agent.id);
     if (result.nri.whatsappNumber) await this.notifications.queueWhatsApp(result.nri.id, result.nri.whatsappNumber, 'appointment_assigned', { agentName: agent.name, propertyName: result.property.name });
     if (agent.whatsappNumber) await this.notifications.queueWhatsApp(agent.id, agent.whatsappNumber, 'appointment_assigned', { propertyName: result.property.name });
     await this.audit.record({ actorId: admin.sub, actorRole: admin.role, action: 'APPOINTMENT_ASSIGNED', entity: 'Appointment', entityId: id, before: { agentId: appointment.agentId }, after: { agentId }, ip, userAgent });

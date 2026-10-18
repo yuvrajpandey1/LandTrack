@@ -97,7 +97,7 @@ export class ChatService {
         where: { userId: participant.userId, template: `chat_alert:${conversationId}`, createdAt: { gte: new Date(Date.now() - 15 * 60_000) } }
       });
       if (recent) continue;
-      await this.notifications.queueEmail(participant.user.email, 'New LandTrack message', `You have a new message in your LandTrack conversation${text ? `: ${text.slice(0, 300)}` : '.'}`, participant.userId);
+      await this.notifications.queueEmail(participant.user.email, 'New NRI Land Tracking System message', `You have a new message in your NRI Land Tracking System conversation${text ? `: ${text.slice(0, 300)}` : '.'}`, participant.userId);
       const whatsappConsent = participant.user.consents.length > 0;
       if (whatsappConsent && participant.user.whatsappNumber) {
         await this.notifications.queueWhatsApp(participant.userId, participant.user.whatsappNumber, 'new_message_alert', { preview: text?.slice(0, 80) ?? 'Attachment received' });

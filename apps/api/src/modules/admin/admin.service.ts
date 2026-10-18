@@ -101,7 +101,7 @@ export class AdminService {
       await this.prisma.agentProfile.update({ where: { userId: id }, data: { approval: AgentApproval.REJECTED, rejectionReason: reason.trim() } });
     }
     await this.audit.record({ actorId: actor.sub, actorRole: actor.role, action: approved ? 'AGENT_APPROVED' : 'AGENT_REJECTED', entity: 'AgentProfile', entityId: id, before: { approval: agent.agentProfile.approval }, after: { approval: approved ? AgentApproval.APPROVED : AgentApproval.REJECTED, reason } });
-    await this.notifications.queueEmail(agent.email, `LandTrack agent application ${approved ? 'approved' : 'updated'}`, approved ? 'Your agent profile has been approved.' : `Your agent application was not approved: ${reason}`);
+    await this.notifications.queueEmail(agent.email, `NRI Land Tracking System agent application ${approved ? 'approved' : 'updated'}`, approved ? 'Your agent profile has been approved.' : `Your agent application was not approved: ${reason}`);
     if (agent.whatsappNumber) await this.notifications.queueWhatsApp(id, agent.whatsappNumber, 'agent_approval_status', { approved: String(approved), reason: reason ?? '' });
     return { id, approval: approved ? AgentApproval.APPROVED : AgentApproval.REJECTED };
   }

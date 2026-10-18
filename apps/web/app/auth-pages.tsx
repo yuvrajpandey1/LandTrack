@@ -23,7 +23,7 @@ function AuthFrame({ children, title, description }: { children: React.ReactNode
         </div>
         {children}
       </section>
-      <p className="auth-region">LandTrack · Hyderabad, Telangana</p>
+      <p className="auth-region">NRI Land Tracking System · Hyderabad, Telangana</p>
     </main>
   );
 }
@@ -68,14 +68,14 @@ export function LoginPage() {
   };
 
   return (
-    <AuthFrame title="Sign in to LandTrack" description="Access your property and appointment workspace with your password.">
+    <AuthFrame title="Sign in to NRI Land Tracking System" description="Access your property and appointment workspace with your password.">
         <form className="auth-form" onSubmit={submit}>
           <label className="form-field"><span>Email address</span><input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label className="form-field"><span>Password</span><input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           {registered && <p className="success-panel" role="status">Your account is ready. Sign in with your password.</p>}
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}<ArrowRight size={16} /></button>
-          <p className="auth-switch">New to LandTrack? <Link href="/register">Create an NRI account</Link></p>
+          <p className="auth-switch">New to NRI Land Tracking System? <Link href="/register">Create an NRI account</Link></p>
           <p className="auth-switch">Local agent? <Link href="/agent/register">Apply to register</Link></p>
           <p className="auth-switch">Administrator? <Link href="/admin/register">Create with setup code</Link></p>
         </form>
@@ -131,7 +131,7 @@ export function NriRegistrationPage() {
           <label className="form-field"><span>Current country</span><select required value={currentCountry} onChange={(event) => setCurrentCountry(event.target.value)}><option value="">Select a country</option>{supportedCountries.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
           <label className="form-field"><span>WhatsApp number <em>Optional</em></span><input type="tel" pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={whatsappNumber} onChange={(event) => setWhatsappNumber(event.target.value)} /></label>
           <label className="terms-check"><input type="checkbox" checked={whatsappOptIn} onChange={(event) => setWhatsappOptIn(event.target.checked)} /><span>I agree to receive WhatsApp updates on this number.</span></label>
-          <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the LandTrack terms and privacy notice.</span></label>
+          <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the NRI Land Tracking System terms and privacy notice.</span></label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}<ArrowRight size={16} /></button>
           <p className="auth-switch">Already registered? <Link href="/login">Sign in</Link></p>
@@ -142,7 +142,7 @@ export function NriRegistrationPage() {
 
 export function AgentRegistrationPage() {
   const router = useRouter();
-  const { request } = useSession();
+  const { request, signOut, user } = useSession();
   const [districts, setDistricts] = useState<District[]>([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -183,6 +183,7 @@ export function AgentRegistrationPage() {
           consents: { terms: true, privacy: true }
         })
       });
+      if (user) await signOut();
       router.replace('/login?registered=1');
     } catch (cause) {
       setError(showError(cause));
@@ -194,6 +195,7 @@ export function AgentRegistrationPage() {
   return (
     <AuthFrame title="Agent registration" description="Apply to support property owners across the Hyderabad service region. Your profile remains pending admin approval after signup.">
         <form className="auth-form" onSubmit={submitRegistration}>
+          {user && <p className="success-panel" role="note">You are signed in as {user.email}. Agent registration creates a separate account, so use a different email address and mobile number. You will be signed out after submitting.</p>}
           <label className="form-field"><span>Full name</span><input autoComplete="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label className="form-field"><span>Email address</span><input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label className="form-field"><span>Mobile number (include country code)</span><input type="tel" autoComplete="tel" required pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={mobile} onChange={(event) => setMobile(event.target.value)} /></label>
@@ -204,7 +206,7 @@ export function AgentRegistrationPage() {
             <legend>Service districts</legend>
             <div className="district-options">{districts.map((district) => <label key={district.id} className="district-option"><input type="checkbox" checked={areasCovered.includes(district.id)} onChange={() => toggleArea(district.id)} /><span>{district.name}</span></label>)}</div>
           </fieldset>
-          <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the LandTrack terms and privacy notice.</span></label>
+          <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the NRI Land Tracking System terms and privacy notice.</span></label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="button button-primary auth-submit" disabled={busy || districts.length === 0}>{busy ? 'Submitting application…' : 'Submit agent application'}<ArrowRight size={16} /></button>
           <p className="auth-switch">Already registered? <Link href="/login">Sign in</Link></p>
@@ -250,7 +252,7 @@ export function AdminRegistrationPage() {
         <label className="form-field"><span>Mobile number</span><input type="tel" autoComplete="tel" required pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={mobile} onChange={(event) => setMobile(event.target.value)} /></label>
         <label className="form-field"><span>Password</span><input type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
         <label className="form-field"><span>Private one-time setup code</span><input type="password" autoComplete="off" minLength={32} required value={setupCode} onChange={(event) => setSetupCode(event.target.value)} /></label>
-        <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the LandTrack terms and privacy notice.</span></label>
+        <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the NRI Land Tracking System terms and privacy notice.</span></label>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Creating administrator…' : 'Create administrator'}<ArrowRight size={16} /></button>
         <p className="auth-switch">Already have an account? <Link href="/login">Sign in</Link></p>

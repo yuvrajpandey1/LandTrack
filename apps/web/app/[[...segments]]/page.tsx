@@ -451,7 +451,7 @@ function AgentForm({ mode, onCreate }: { mode: 'admin' | 'registration'; onCreat
         <div className="agent-next-steps">
           <h2>What happens next?</h2>
           <p>{isRegistration
-            ? 'The LandTrack admin team will review your profile and service areas. You can sign in after verifying your mobile number and your application is approved.'
+            ? 'The NRI Land Tracking System admin team will review your profile and service areas. You can sign in after verifying your mobile number and your application is approved.'
             : 'This preview records the agent profile as pending. In the live service, the agent completes mobile verification and an administrator approves the profile before appointments can be assigned.'}</p>
           <span className="status-badge status-amber"><span />Pending approval</span>
         </div>
@@ -485,7 +485,7 @@ function AgentForm({ mode, onCreate }: { mode: 'admin' | 'registration'; onCreat
         {isRegistration && <>
           <label className="form-field"><span>Create password</span><input type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 10 characters" /></label>
           <label className="form-field"><span>Confirm password</span><input type="password" autoComplete="new-password" minLength={10} required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Re-enter password" /></label>
-          <label className="terms-check full"><input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the LandTrack terms and privacy notice.</span></label>
+          <label className="terms-check full"><input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the NRI Land Tracking System terms and privacy notice.</span></label>
         </>}
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -594,13 +594,13 @@ function RegistrationWizard({ onCreate, onPayment }: { onCreate: (property: Prop
             {notice ? <div className="success-panel"><span><Check size={22} /></span><div><h2>Registration started</h2><p>{notice}</p></div></div> : <div><h2>Review and pay</h2><p>Confirm your property details before continuing to checkout.</p></div>}
             <div className="review-card"><div><span>Property</span><strong>{name || 'New property'}</strong></div><div><span>Survey number</span><strong>{survey || '—'}</strong></div><div><span>Location</span><strong>{village || 'Village not selected'}, {district}, Telangana</strong></div><div><span>Property type</span><strong>{propertyType}</strong></div><div><span>Area</span><strong>{area || '—'} {unit}</strong></div><div><span>Ownership</span><strong>{ownership}</strong></div><div className="full"><span>Selected documents</span><strong>{files.join(', ')}</strong></div></div>
             <div className="charge-row"><span>One-time registration charge</span><strong>₹500.00</strong></div>
-            <div className="upload-info"><ShieldCheck size={17} /><span>Payment is processed through hosted checkout. Card details are never stored by LandTrack.</span></div>
+            <div className="upload-info"><ShieldCheck size={17} /><span>Payment is processed through hosted checkout. Card details are never stored by the NRI Land Tracking System.</span></div>
             <div className="wizard-actions"><button className="button button-secondary" onClick={() => setStep(2)}><ChevronLeft size={16} />Back</button><button className="button button-primary" onClick={() => { if (!notice) createDraft(); else { onPayment(createdPropertyId); setNotice('Sandbox checkout complete. Payment confirmation is simulated in this preview.'); } }}><Wallet size={16} />{notice.includes('Sandbox checkout') ? 'Payment confirmed' : notice ? 'Continue to sandbox checkout' : 'Create registration'}</button></div>
           </div>
         )}
       </section>
       <aside className="wizard-aside">
-        <div className="aside-card"><span className="aside-icon"><ShieldCheck size={20} /></span><h3>Your property, protected</h3><p>Your information and property documents are private and only visible to you and authorized LandTrack staff.</p></div>
+        <div className="aside-card"><span className="aside-icon"><ShieldCheck size={20} /></span><h3>Your property, protected</h3><p>Your information and property documents are private and only visible to you and authorized NRI Land Tracking System staff.</p></div>
         <div className="aside-card"><h3>Before you begin</h3><ul><li>Keep your survey number handy</li><li>Upload a readable ownership document</li><li>Confirm the Hyderabad area location</li></ul></div>
       </aside>
     </div>
@@ -659,7 +659,7 @@ function SectionPage({ pathname, properties, agents, activeAgents, onReviewPrope
   if (pathname === '/admin') return <AdminDashboard properties={properties} activeAgents={activeAgents} onReview={onReviewProperty} />;
   if (pathname === '/admin/agents') return <AgentDirectory agents={agents} onReview={onReviewAgent} />;
   if (pathname === '/admin/agents/new') return <><PageHeading eyebrow="AGENT MANAGEMENT" title="Invite an agent" description="Agent profiles are created by verified applicants and become assignable after admin approval." /><div className="card empty-state"><Users size={28} /><h2>Share the agent application</h2><p>Ask the agent to create an account, verify their mobile number, and submit their service areas. Their verified application will appear here for approval.</p><Link href="/agent/register" className="button button-primary">Open agent registration<ArrowRight size={16} /></Link></div></>;
-  if (pathname === '/app/properties/new') return <><PageHeading eyebrow="MY PROPERTIES" title="Register a property" description="Add your Hyderabad land or property in a few guided steps." /><PropertyRegistration /></>;
+  if (pathname === '/app/properties/new') return <><PageHeading eyebrow="MY PROPERTIES" title="Register a property" description="Add your land or property in a supported Telangana district in a few guided steps." /><PropertyRegistration /></>;
   if (pathname === '/app/appointments/new') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select a convenient date and time to speak with your Hyderabad agent." /><AppointmentBooking /></>;
   if (pathname === '/app/payments') return <><PageHeading eyebrow="PAYMENT HISTORY" title="Payments" description="Track registration charges and provider-confirmed receipts." /><PaymentHistory /></>;
   if (pathname.startsWith('/audit/properties/')) {
@@ -667,7 +667,7 @@ function SectionPage({ pathname, properties, agents, activeAgents, onReviewPrope
     return <AuditDetail property={properties.find((property) => property.id === id)} />;
   }
   if (pathname === '/audit') return <><PageHeading eyebrow="READ-ONLY AUDIT" title="Audit overview" description="Independent visibility into property registrations, payments, and communications." /><div className="stats-grid"><StatCard title="Total properties" value={String(properties.length).padStart(2, '0')} change="Sample records" icon={Building2} /><StatCard title="Submitted" value={String(properties.filter((item) => item.status === 'Under review').length).padStart(2, '0')} change="Awaiting review" icon={ClipboardCheck} tone="amber" /><StatCard title="Approved" value={String(properties.filter((item) => item.status === 'Approved').length).padStart(2, '0')} change="Reviewed records" icon={ShieldCheck} tone="green" /><StatCard title="Payment records" value="—" change="Not connected in preview" icon={Wallet} tone="purple" /></div><PropertyTable properties={properties} audit /></>;
-  if (pathname === '/audit/properties') return <><PageHeading eyebrow="AUDIT REGISTER" title="Property register" description="Search and filter the complete Hyderabad property register." action={<button className="button button-secondary"><Filter size={16} />Filters</button>} /><PropertyTable properties={properties} audit /></>;
+  if (pathname === '/audit/properties') return <><PageHeading eyebrow="AUDIT REGISTER" title="Property register" description="Search and filter registered properties across the supported Telangana districts." action={<button className="button button-secondary"><Filter size={16} />Filters</button>} /><PropertyTable properties={properties} audit /></>;
   if (pathname === '/admin/properties') {
     return <><PageHeading eyebrow="PROPERTY REVIEW" title="Property submissions" description="Review property registrations and update their status." /><PropertyTable properties={properties} onStatusChange={onReviewProperty} /></>;
   }
@@ -677,7 +677,7 @@ function SectionPage({ pathname, properties, agents, activeAgents, onReviewPrope
     const underReview = properties.filter((property) => property.status === 'Under review').length;
     return (
       <>
-        <PageHeading eyebrow={isAgent ? 'AGENT WORKSPACE' : 'MY LANDTRACK'} title={isAgent ? 'Welcome to your workspace' : 'Welcome back'} description={isAgent ? 'Your assigned properties and customer requests.' : 'Track your property registrations and connect with your local agent.'} action={!isAgent && <Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Add property</Link>} />
+        <PageHeading eyebrow={isAgent ? 'AGENT WORKSPACE' : 'MY PROPERTIES'} title={isAgent ? 'Welcome to your workspace' : 'Welcome back'} description={isAgent ? 'Your assigned properties and customer requests.' : 'Track your property registrations and connect with your local agent.'} action={!isAgent && <Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Add property</Link>} />
         <section className="stats-grid">
           <StatCard title={isAgent ? 'Assigned properties' : 'My properties'} value={String(properties.length).padStart(2, '0')} change="Current records" icon={Building2} />
           <StatCard title="Approved properties" value={String(approved).padStart(2, '0')} change="Ready for appointments" icon={CheckCircle2} tone="green" />
@@ -688,14 +688,14 @@ function SectionPage({ pathname, properties, agents, activeAgents, onReviewPrope
       </>
     );
   }
-  if (pathname.includes('properties')) return <><PageHeading eyebrow="PROPERTY REGISTER" title={pathname.startsWith('/audit') ? 'Property register' : 'My properties'} description="Review status and details for registered Hyderabad properties." action={!pathname.startsWith('/audit') && <Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Register property</Link>} /><PropertyTable properties={pathname.startsWith('/audit') ? properties : properties.filter((item) => item.owner === 'You')} audit={pathname.startsWith('/audit')} /></>;
-  const title = pathname.split('/').filter(Boolean).at(-1)?.replaceAll('-', ' ') ?? 'LandTrack';
+  if (pathname.includes('properties')) return <><PageHeading eyebrow="PROPERTY REGISTER" title={pathname.startsWith('/audit') ? 'Property register' : 'My properties'} description="Review status and details for properties in the supported Telangana districts." action={!pathname.startsWith('/audit') && <Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Register property</Link>} /><PropertyTable properties={pathname.startsWith('/audit') ? properties : properties.filter((item) => item.owner === 'You')} audit={pathname.startsWith('/audit')} /></>;
+  const title = pathname.split('/').filter(Boolean).at(-1)?.replaceAll('-', ' ') ?? 'NRI Land Tracking System';
   const formattedTitle = title.replace(/\b\w/g, (letter) => letter.toUpperCase());
   const roleAdmin = pathname.startsWith('/admin');
   const hasReadOnly = pathname.startsWith('/audit');
   return (
     <>
-      <PageHeading eyebrow={hasReadOnly ? 'READ-ONLY AUDIT' : roleAdmin ? 'ADMINISTRATION' : 'MY LANDTRACK'} title={formattedTitle} description={hasReadOnly ? 'Read-only access to LandTrack records and communication activity.' : 'Manage LandTrack activity for the Hyderabad region.'} />
+      <PageHeading eyebrow={hasReadOnly ? 'READ-ONLY AUDIT' : roleAdmin ? 'ADMINISTRATION' : 'MY PROPERTIES'} title={formattedTitle} description={hasReadOnly ? 'Read-only access to NRI Land Tracking System records and communication activity.' : 'Manage NRI Land Tracking System activity for the Hyderabad region.'} />
       {pathname.includes('appointment') ? <AppointmentScreen /> : pathname.includes('properties') ? <PropertyTable properties={properties} audit={hasReadOnly} /> : (
         <section className="card module-card">
           <div className="module-icon"><ClipboardCheck size={23} /></div>
@@ -708,7 +708,7 @@ function SectionPage({ pathname, properties, agents, activeAgents, onReviewPrope
   );
 }
 
-export default function LandTrackPage() {
+export default function NriLandTrackingSystemPage() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading: sessionLoading, error: sessionError, request, signOut } = useSession();
@@ -756,7 +756,7 @@ export default function LandTrackPage() {
         setActiveAgents(0);
       }
     } catch (cause) {
-      setRecordsError(cause instanceof Error ? cause.message : 'Unable to load workspace data from the LandTrack API.');
+      setRecordsError(cause instanceof Error ? cause.message : 'Unable to load workspace data from the NRI Land Tracking System API.');
     } finally {
       setRecordsLoading(false);
     }
@@ -788,29 +788,29 @@ export default function LandTrackPage() {
     if (sessionLoading) return;
     if (!user && currentPath === '/login') return;
     if (!user && currentPath === '/register') return;
-    if (!user && currentPath === '/agent/register') return;
+    if (currentPath === '/agent/register') return;
     if (!user && currentPath === '/admin/register') return;
     if (!user) {
       router.replace('/login');
       return;
     }
-    if (publicRoute || currentPath === '/') {
+    if ((publicRoute && currentPath !== '/agent/register') || currentPath === '/') {
       router.replace(homeByRole[roleByAccount[user.role]]);
       return;
     }
     if (!permitted) router.replace(homeByRole[roleByAccount[user.role]]);
   }, [currentPath, permitted, publicRoute, router, sessionLoading, user]);
 
-  if (sessionLoading) return <div className="app-loading" aria-label="Loading LandTrack" />;
+  if (sessionLoading) return <div className="app-loading" aria-label="Loading NRI Land Tracking System" />;
   if (currentPath === '/login') return <LoginPage />;
   if (currentPath === '/register') return <NriRegistrationPage />;
-  if (currentPath === '/agent/register' && !user) return <AgentRegistrationPage />;
+  if (currentPath === '/agent/register') return <AgentRegistrationPage />;
   if (currentPath === '/admin/register' && !user) return <AdminRegistrationPage />;
-  if (!user || !role || !permitted || currentPath === '/' || (recordsLoading && !passwordRoute)) return <div className="app-loading" aria-label="Loading LandTrack" />;
+  if (!user || !role || !permitted || currentPath === '/' || (recordsLoading && !passwordRoute)) return <div className="app-loading" aria-label="Loading NRI Land Tracking System" />;
 
   const handleSignOut = () => {
     void signOut().then(() => router.replace('/login')).catch((cause: unknown) => {
-      console.error('LandTrack sign-out request failed.', cause);
+      console.error('NRI Land Tracking System sign-out request failed.', cause);
       router.replace('/login');
     });
   };
@@ -829,7 +829,7 @@ export default function LandTrackPage() {
               ? <section className="card empty-state"><h2>Workspace data unavailable</h2><p role="alert">{recordsError}</p><button className="button button-primary" onClick={() => { void refreshRecords(); }}>Try again</button></section>
               : <SectionPage pathname={currentPath} properties={properties} agents={agents} activeAgents={activeAgents} onReviewProperty={reviewProperty} onReviewAgent={reviewAgent} />}
           </main>
-          <footer className="app-footer"><span>LandTrack · Hyderabad, Telangana</span><span>Secure account workspace</span></footer>
+          <footer className="app-footer"><span>NRI Land Tracking System · Hyderabad, Telangana</span><span>Secure account workspace</span></footer>
         </div>
       </div>
     </main>

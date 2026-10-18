@@ -30,8 +30,8 @@ async function bootstrap() {
 
   if (process.env.NODE_ENV !== 'production') {
     const swagger = new DocumentBuilder()
-      .setTitle('LandTrack API')
-      .setDescription('LandTrack Hyderabad property registration API')
+      .setTitle('NRI Land Tracking System API')
+      .setDescription('NRI Land Tracking System Hyderabad property registration API')
       .setVersion('1.3.0')
       .addBearerAuth()
       .build();
@@ -39,7 +39,7 @@ async function bootstrap() {
   }
 
   await app.listen(Number(process.env.PORT ?? 4000));
-  console.info(`LandTrack API is listening on port ${Number(process.env.PORT ?? 4000)}.`);
+  console.info(`NRI Land Tracking System API is listening on port ${Number(process.env.PORT ?? 4000)}.`);
 }
 
 void bootstrap();

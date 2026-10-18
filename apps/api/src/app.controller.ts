@@ -7,7 +7,7 @@ export class AppController {
   @Public()
   getRoot() {
     return {
-      application: 'LandTrack',
+      application: 'NRI Land Tracking System',
       version: '1.3.0',
       region: 'Hyderabad, Telangana',
       status: 'running'

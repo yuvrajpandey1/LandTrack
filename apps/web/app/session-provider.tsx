@@ -59,7 +59,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
     const record = body && typeof body === 'object' ? body as Record<string, unknown> : {};
     if (response.status >= 500 && !contentType.includes('application/json')) {
       throw new ApiError(
-        'The LandTrack API is unavailable. Start the API and its database services, then try again.',
+        'The NRI Land Tracking System API is unavailable. Start the API and its database services, then try again.',
         response.status,
         'API_UNAVAILABLE'
       );

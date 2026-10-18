@@ -66,8 +66,10 @@ const environmentSchema = z.object({
     for (const provider of [env.SMS_PROVIDER, env.WHATSAPP_PROVIDER, env.PAYMENT_PROVIDER]) {
       if (provider === 'fake') context.addIssue({ code: 'custom', message: 'Fake providers cannot be enabled in production.' });
     }
-    if (!env.ADMIN_INITIAL_PASSWORD || env.ADMIN_INITIAL_PASSWORD.length < 12) {
-      context.addIssue({ code: 'custom', message: 'ADMIN_INITIAL_PASSWORD must be at least 12 characters.' });
+    const hasInitialAdminPassword = Boolean(env.ADMIN_INITIAL_PASSWORD && env.ADMIN_INITIAL_PASSWORD.length >= 12);
+    const hasAdminSignupCode = Boolean(env.ADMIN_SIGNUP_CODE && env.ADMIN_SIGNUP_CODE.length >= 32);
+    if (!hasInitialAdminPassword && !hasAdminSignupCode) {
+      context.addIssue({ code: 'custom', message: 'Production requires either an ADMIN_INITIAL_PASSWORD of at least 12 characters or an ADMIN_SIGNUP_CODE of at least 32 characters.' });
     }
     if (env.PAYMENT_PROVIDER === 'razorpay' && (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET || !env.RAZORPAY_WEBHOOK_SECRET)) {
       context.addIssue({ code: 'custom', message: 'Razorpay API and webhook credentials are required.' });
@@ -85,7 +87,7 @@ export function validateEnvironment(environment: Record<string, unknown>): Recor
   const parsed = environmentSchema.safeParse(environment);
   if (!parsed.success) {
     const reasons = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
-    throw new Error(`Invalid LandTrack API environment: ${reasons}`);
+    throw new Error(`Invalid NRI Land Tracking System API environment: ${reasons}`);
   }
   return parsed.data;
 }

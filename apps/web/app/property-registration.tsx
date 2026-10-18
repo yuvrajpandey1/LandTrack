@@ -38,6 +38,7 @@ export function PropertyRegistration() {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [surveyNumber, setSurveyNumber] = useState('');
+  const [city, setCity] = useState('Hyderabad');
   const [address, setAddress] = useState('');
   const [districts, setDistricts] = useState<LocationOption[]>([]);
   const [talukas, setTalukas] = useState<LocationOption[]>([]);
@@ -111,6 +112,7 @@ export function PropertyRegistration() {
           name,
           type: propertyTypes[propertyType],
           surveyNumber,
+          city,
           districtId,
           talukaId,
           villageId,
@@ -204,14 +206,14 @@ export function PropertyRegistration() {
         </div>
         {step === 1 && (
           <div className="wizard-content">
-            <div><h2>Add land details</h2><p>Register a property located in Hyderabad, Telangana.</p></div>
+            <div><h2>Add land details</h2><p>Register a property located in one of the supported districts in Telangana.</p></div>
             <div className="form-grid">
               <label className="form-field full"><span>Property name</span><input required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Green Valley Plot" /></label>
               <label className="form-field"><span>Property type</span><select value={propertyType} onChange={(event) => setPropertyType(event.target.value)}>{Object.keys(propertyTypes).map((type) => <option key={type}>{type}</option>)}</select></label>
               <label className="form-field"><span>Survey number</span><input required maxLength={80} value={surveyNumber} onChange={(event) => setSurveyNumber(event.target.value)} placeholder="e.g. 142/3A" /></label>
               <label className="form-field"><span>State</span><input value="Telangana" readOnly /></label>
-              <label className="form-field"><span>City</span><input value="Hyderabad" readOnly /></label>
-              <label className="form-field"><span>District</span><select required value={districtId} onChange={(event) => { setDistrictId(event.target.value); setTalukaId(''); setVillageId(''); }}><option value="">Select district</option>{districts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+              <label className="form-field"><span>City / town</span><input required maxLength={120} value={city} onChange={(event) => setCity(event.target.value)} placeholder="e.g. Hyderabad or Sangareddy" /></label>
+              <label className="form-field"><span>District</span><select required value={districtId} onChange={(event) => { const nextDistrictId = event.target.value; setDistrictId(nextDistrictId); setCity(districts.find((item) => item.id === nextDistrictId)?.name === 'Hyderabad' ? 'Hyderabad' : ''); setTalukaId(''); setVillageId(''); }}><option value="">Select district</option>{districts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
               <label className="form-field"><span>Taluka / Mandal</span><select required value={talukaId} onChange={(event) => { setTalukaId(event.target.value); setVillageId(''); }}><option value="">Select taluka / mandal</option>{talukas.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
               <label className="form-field"><span>Village</span><select required value={villageId} onChange={(event) => setVillageId(event.target.value)}><option value="">Select village</option>{villages.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
               <label className="form-field full"><span>Address / landmark <em>Optional</em></span><input maxLength={300} value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Street, landmark or nearby location" /></label>
@@ -221,7 +223,7 @@ export function PropertyRegistration() {
               <label className="form-field"><span>Purpose</span><select value={intent} onChange={(event) => setIntent(event.target.value)}>{Object.keys(intents).map((value) => <option key={value}>{value}</option>)}</select></label>
             </div>
             {error && <p className="form-error" role="alert">{error}</p>}
-            <div className="wizard-actions"><span className="muted">Step 1 of 3</span><button className="button button-primary" disabled={busy || !name.trim() || !surveyNumber.trim() || !districtId || !talukaId || !villageId || !area || Number(area) <= 0} onClick={() => { void createDraft(); }}>{busy ? 'Saving…' : 'Continue'} <ArrowRight size={16} /></button></div>
+            <div className="wizard-actions"><span className="muted">Step 1 of 3</span><button className="button button-primary" disabled={busy || !name.trim() || !surveyNumber.trim() || !city.trim() || !districtId || !talukaId || !villageId || !area || Number(area) <= 0} onClick={() => { void createDraft(); }}>{busy ? 'Saving…' : 'Continue'} <ArrowRight size={16} /></button></div>
           </div>
         )}
         {step === 2 && (
@@ -239,17 +241,17 @@ export function PropertyRegistration() {
             {checkoutUrl
               ? <div className="success-panel"><span><Check size={22} /></span><div><h2>Opening secure checkout</h2><p>You are being redirected to the payment provider.</p></div></div>
               : <div><h2>Review and pay</h2><p>Confirm your property details before continuing to hosted checkout.</p></div>}
-            <div className="review-card"><div><span>Property</span><strong>{name}</strong></div><div><span>Survey number</span><strong>{surveyNumber}</strong></div><div><span>Location</span><strong>{selectedVillage}, {selectedTaluka}, {selectedDistrict}</strong></div><div><span>Property type</span><strong>{propertyType}</strong></div><div><span>Area</span><strong>{area} {unit}</strong></div><div><span>Ownership</span><strong>{ownership}</strong></div><div className="full"><span>Documents</span><strong>{documents.map(({ file }) => file.name).join(', ')}</strong></div></div>
+            <div className="review-card"><div><span>Property</span><strong>{name}</strong></div><div><span>Survey number</span><strong>{surveyNumber}</strong></div><div><span>Location</span><strong>{selectedVillage}, {selectedTaluka}, {selectedDistrict}</strong></div><div><span>City / town</span><strong>{city}</strong></div><div><span>Property type</span><strong>{propertyType}</strong></div><div><span>Area</span><strong>{area} {unit}</strong></div><div><span>Ownership</span><strong>{ownership}</strong></div><div className="full"><span>Documents</span><strong>{documents.map(({ file }) => file.name).join(', ')}</strong></div></div>
             <div className="charge-row"><span>One-time registration charge</span><strong>Shown by the payment provider</strong></div>
-            <div className="upload-info"><ShieldCheck size={17} /><span>Payment is handled by hosted checkout. LandTrack does not collect or store card details.</span></div>
+            <div className="upload-info"><ShieldCheck size={17} /><span>Payment is handled by hosted checkout. The NRI Land Tracking System does not collect or store card details.</span></div>
             {error && <p className="form-error" role="alert">{error}</p>}
             <div className="wizard-actions"><button className="button button-secondary" disabled={busy} onClick={() => setStep(2)}><ChevronLeft size={16} />Back</button><button className="button button-primary" disabled={busy || Boolean(checkoutUrl)} onClick={() => { void beginCheckout(); }}><Wallet size={16} />{busy ? 'Preparing checkout…' : 'Continue to secure payment'}</button></div>
           </div>
         )}
       </section>
       <aside className="wizard-aside">
-        <div className="aside-card"><span className="aside-icon"><ShieldCheck size={20} /></span><h3>Your property, protected</h3><p>Your information and property documents are private and visible only to you and authorized LandTrack staff.</p></div>
-        <div className="aside-card"><h3>Before you begin</h3><ul><li>Keep your survey number handy</li><li>Upload a readable ownership document</li><li>Confirm the Hyderabad area location</li></ul></div>
+        <div className="aside-card"><span className="aside-icon"><ShieldCheck size={20} /></span><h3>Your property, protected</h3><p>Your information and property documents are private and visible only to you and authorized NRI Land Tracking System staff.</p></div>
+        <div className="aside-card"><h3>Before you begin</h3><ul><li>Keep your survey number handy</li><li>Upload a readable ownership document</li><li>Confirm the property district, mandal and village</li></ul></div>
       </aside>
     </div>
   );

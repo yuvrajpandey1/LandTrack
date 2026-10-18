@@ -12,6 +12,7 @@ const createSchema = z.object({
   name: z.string().trim().min(2).max(120),
   type: z.enum(PropertyType),
   surveyNumber: z.string().trim().min(1).max(80),
+  city: z.string().trim().min(2).max(120).optional(),
   districtId: z.string().uuid(), talukaId: z.string().uuid(), villageId: z.string().uuid(),
   address: z.string().max(300).optional(), landmark: z.string().max(160).optional(),
   latitude: z.number().min(-90).max(90).optional(), longitude: z.number().min(-180).max(180).optional(),
