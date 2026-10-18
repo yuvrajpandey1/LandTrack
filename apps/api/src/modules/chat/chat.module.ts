@@ -9,6 +9,14 @@ import { AuthModule } from '../auth/auth.module';
 @Module({
   imports: [NotificationsModule, ProvidersModule, AuthModule],
   controllers: [ChatController],
-  providers: [ChatService, ChatGateway]
+  providers: [
+    ChatService,
+    process.env.LANDTRACK_NETLIFY_FUNCTIONS === 'true'
+      ? {
+          provide: ChatGateway,
+          useValue: { broadcastMessage: () => undefined, isOnline: () => false }
+        }
+      : ChatGateway
+  ]
 })
 export class ChatModule {}

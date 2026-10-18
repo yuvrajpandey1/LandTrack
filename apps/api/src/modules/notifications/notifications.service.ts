@@ -15,7 +15,7 @@ interface DeliveryJob {
 
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
-  private readonly queue: Queue<DeliveryJob>;
+  private readonly queue?: Queue<DeliveryJob>;
   private worker?: Worker<DeliveryJob>;
 
   constructor(
@@ -24,13 +24,16 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     private readonly whatsappProvider: WhatsAppService,
     private readonly audit: AuditService
   ) {
-    const redis = new URL(process.env.REDIS_URL!);
-    this.queue = new Queue<DeliveryJob>('landtrack-notifications', {
-      connection: { host: redis.hostname, port: Number(redis.port || 6379), password: redis.password || undefined, maxRetriesPerRequest: null }
-    });
+    if (process.env.LANDTRACK_NETLIFY_FUNCTIONS !== 'true') {
+      const redis = new URL(process.env.REDIS_URL!);
+      this.queue = new Queue<DeliveryJob>('landtrack-notifications', {
+        connection: { host: redis.hostname, port: Number(redis.port || 6379), password: redis.password || undefined, maxRetriesPerRequest: null }
+      });
+    }
   }
 
   async onModuleInit(): Promise<void> {
+    if (!this.queue) return;
     const redis = new URL(process.env.REDIS_URL!);
     this.worker = new Worker<DeliveryJob>(
       'landtrack-notifications',
@@ -61,16 +64,20 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    await Promise.all([this.worker?.close(), this.queue.close()]);
+    await Promise.all([this.worker?.close(), this.queue?.close()]);
   }
 
   async queueEmail(to: string, subject: string, text: string, userId?: string): Promise<void> {
     const notification = await this.prisma.notification.create({
       data: { userId, channel: Channel.EMAIL, template: subject, payload: { to, subject, text }, status: 'QUEUED' }
     });
-    await this.queue.add('deliver', { notificationId: notification.id, channel: 'EMAIL', payload: { to, subject, text } }, {
-      jobId: notification.id, attempts: 5, backoff: { type: 'exponential', delay: 1000 }, removeOnComplete: 1000, removeOnFail: 5000
-    });
+    if (this.queue) {
+      await this.queue.add('deliver', { notificationId: notification.id, channel: 'EMAIL', payload: { to, subject, text } }, {
+        jobId: notification.id, attempts: 5, backoff: { type: 'exponential', delay: 1000 }, removeOnComplete: 1000, removeOnFail: 5000
+      });
+      return;
+    }
+    await this.deliverImmediately(notification.id, 'EMAIL', { to, subject, text });
   }
 
   async queueWhatsApp(userId: string, to: string, template: string, variables: Record<string, string>): Promise<void> {
@@ -79,11 +86,39 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     const notification = await this.prisma.notification.create({
       data: { userId, channel: Channel.WHATSAPP, template, payload: variables, status: 'QUEUED' }
     });
-    await this.queue.add('deliver', {
-      notificationId: notification.id, channel: 'WHATSAPP', payload: { to, template, variables }
-    }, {
-      jobId: notification.id, attempts: 5, backoff: { type: 'exponential', delay: 1000 }, removeOnComplete: 1000, removeOnFail: 5000
-    });
+    if (this.queue) {
+      await this.queue.add('deliver', {
+        notificationId: notification.id, channel: 'WHATSAPP', payload: { to, template, variables }
+      }, {
+        jobId: notification.id, attempts: 5, backoff: { type: 'exponential', delay: 1000 }, removeOnComplete: 1000, removeOnFail: 5000
+      });
+      return;
+    }
+    await this.deliverImmediately(notification.id, 'WHATSAPP', { to, template, variables });
+  }
+
+  private async deliverImmediately(
+    notificationId: string,
+    channel: DeliveryJob['channel'],
+    payload: DeliveryJob['payload']
+  ): Promise<void> {
+    try {
+      if (channel === 'EMAIL') {
+        if (!payload.subject || !payload.text) throw new Error('Email notification payload is missing a subject or body.');
+        await this.mailer.send(payload.to, payload.subject, payload.text);
+      } else {
+        if (!payload.template) throw new Error('WhatsApp notification payload is missing its template.');
+        const externalId = await this.whatsappProvider.sendTemplate(payload.to, payload.template, payload.variables ?? {});
+        await this.prisma.notification.update({ where: { id: notificationId }, data: { externalId } });
+      }
+      await this.prisma.notification.update({ where: { id: notificationId }, data: { status: 'SENT', error: null } });
+    } catch (error) {
+      await this.prisma.notification.update({
+        where: { id: notificationId },
+        data: { status: 'FAILED', error: error instanceof Error ? error.message.slice(0, 500) : 'Provider delivery failed.' }
+      });
+      throw error;
+    }
   }
 
   verifyWhatsAppWebhook(mode: string | undefined, token: string | undefined, challenge: string | undefined): string {

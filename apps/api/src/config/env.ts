@@ -2,10 +2,11 @@ import { z } from 'zod';
 
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  LANDTRACK_NETLIFY_FUNCTIONS: z.enum(['true', 'false']).optional(),
   APP_URL: z.string().url(),
   API_URL: z.string().url(),
   DATABASE_URL: z.string().url().startsWith('postgresql://'),
-  REDIS_URL: z.string().url(),
+  REDIS_URL: z.string().url().optional(),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   OTP_HASH_SECRET: z.string().min(32),
@@ -51,6 +52,9 @@ const environmentSchema = z.object({
   GOOGLE_CALENDAR_CLIENT_SECRET: z.string().optional().or(z.literal('')),
   GOOGLE_CALENDAR_REFRESH_TOKEN: z.string().optional().or(z.literal(''))
 }).superRefine((env, context) => {
+  if (env.LANDTRACK_NETLIFY_FUNCTIONS !== 'true' && !env.REDIS_URL) {
+    context.addIssue({ code: 'custom', path: ['REDIS_URL'], message: 'REDIS_URL is required outside Netlify Functions.' });
+  }
   if (env.SMS_PROVIDER === 'twilio_verify') {
     const hasApiKey = Boolean(env.TWILIO_API_KEY_SID && env.TWILIO_API_KEY_SECRET);
     const hasAccountCredentials = Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN);

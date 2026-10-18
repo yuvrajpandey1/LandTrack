@@ -1,0 +1,17 @@
+[build]
+base = "."
+command = "pnpm --dir apps/api build && pnpm --dir apps/web build"
+publish = "apps/web/.next"
+functions = "apps/api/netlify/functions"
+
+[build.environment]
+DATABASE_URL = "postgresql://build-only:build-only@127.0.0.1:5432/landtrack"
+
+[[plugins]]
+package = "@netlify/plugin-nextjs"
+
+[[redirects]]
+from = "/api/v1/*"
+to = "/.netlify/functions/api/api/v1/:splat"
+status = 200
+force = true

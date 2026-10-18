@@ -33,7 +33,7 @@ Appointment booking writes Google Calendar events to the calendar owned by the a
 
 For Gmail delivery, configure the API SMTP URL with a Gmail App Password and use `MAIL_FROM=adminlandtrack@gmail.com`, or configure another trusted SMTP relay. With Gmail SMTP, use an app password (not the account password) and keep it in the ignored `apps/api/.env`; the local default SMTP URL sends mail only to the development MailHog inbox.
 
-For a Railway API deployment with managed PostgreSQL/Redis, ClamAV, object storage, and Netlify connection steps, follow [the Railway deployment guide](./docs/deployment-railway.md).
+For a Netlify deployment of both the web app and stateless API function, including the required managed service configuration and function limitations, follow [the Netlify deployment guide](./docs/deployment-netlify.md). A persistent Railway API deployment remains documented in [the Railway deployment guide](./docs/deployment-railway.md).
 
 This is an integration baseline, not a production-ready service. Run the complete journey against the local Compose dependencies before staging. Some portal areas (including chat/calls, notifications, auditor review, and several admin workspaces) still need full UI integration and end-to-end verification. For staging and production, use provider-managed secrets and configure real SMS/WhatsApp, hosted-checkout test/live credentials, object storage, email, Jitsi/TURN/recording, and monitoring; import authoritative Hyderabad location masters; add automated API/E2E and security tests; and complete legal, privacy, retention, operational, backup, and deployment reviews. Do not use fake adapters or real user documents/payment data until the relevant provider flows and controls have been verified.
 
