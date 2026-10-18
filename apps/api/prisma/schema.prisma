@@ -164,13 +164,14 @@ model OtpChallenge {
 }
 
 model RefreshToken {
-  id        String    @id @default(uuid())
-  userId    String
-  tokenHash String    @unique
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  mfaVerified Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
 }
@@ -327,23 +328,25 @@ model SlotException {
 }
 
 model Appointment {
-  id           String            @id @default(uuid())
-  propertyId   String
-  nriId        String
-  agentId      String?
-  mode         AppointmentMode
-  startUtc     DateTime
-  endUtc       DateTime
-  status       AppointmentStatus @default(REQUESTED)
-  notes        String?
-  assignedAt   DateTime?
-  assignedById String?
-  createdAt    DateTime          @default(now())
-  property     Property          @relation(fields: [propertyId], references: [id])
-  nri          User              @relation("AppointmentNri", fields: [nriId], references: [id])
-  agent        User?             @relation("AppointmentAgent", fields: [agentId], references: [id])
-  call         Call?
-  conversation Conversation?
+  id                    String            @id @default(uuid())
+  propertyId            String
+  nriId                 String
+  agentId               String?
+  mode                  AppointmentMode
+  startUtc              DateTime
+  endUtc                DateTime
+  status                AppointmentStatus @default(REQUESTED)
+  notes                 String?
+  googleCalendarEventId String?           @unique
+  googleMeetUrl         String?
+  assignedAt            DateTime?
+  assignedById          String?
+  createdAt             DateTime          @default(now())
+  property              Property          @relation(fields: [propertyId], references: [id])
+  nri                   User              @relation("AppointmentNri", fields: [nriId], references: [id])
+  agent                 User?             @relation("AppointmentAgent", fields: [agentId], references: [id])
+  call                  Call?
+  conversation          Conversation?
 
   @@index([startUtc, status])
   @@index([nriId, startUtc])
@@ -449,10 +452,15 @@ model Setting {
 }
 
 model AdminSignupToken {
-  id         String    @id @default("initial")
-  tokenHash  String
-  consumedAt DateTime?
-  createdAt  DateTime  @default(now())
+  id                     String    @id @default("initial")
+  tokenHash              String
+  consumedAt             DateTime?
+  requestedAt            DateTime?
+  requestWindowStartedAt DateTime?
+  requestCount           Int       @default(0)
+  expiresAt              DateTime?
+  failedAttempts         Int       @default(0)
+  createdAt              DateTime  @default(now())
 }
 
 model AuditLog {

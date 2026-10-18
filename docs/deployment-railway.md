@@ -43,11 +43,11 @@ Set variables in the Railway API service only. Use Railway's variable-reference 
 | `CLAMAV_HOST` | `clamav.railway.internal` |
 | `CLAMAV_PORT` | `3310` |
 | `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_NOTIFY_EMAIL` | Initial administrator and notification addresses |
-| `ADMIN_SIGNUP_CODE` | Private random value, at least 32 characters; set only on the API service |
+| `ADMIN_SETUP_EMAIL` | Administrator mailbox that receives one-time signup codes |
 
 To generate independent secret values locally, run `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` once per secret. Do not reuse a value across secret variables. Never paste production credentials into chat or commit them.
 
-For the initial administrator, either set `ADMIN_SIGNUP_CODE` and visit `https://your-site.netlify.app/admin/register`, or set `ADMIN_INITIAL_PASSWORD` (at least 12 characters) and `ADMIN_MOBILE` and create the administrator with the seed command. The setup-code route is one-time; after the initial administrator exists it refuses further administrator bootstrap. Keep the code private and remove it from the service environment after setup.
+To create an administrator through signup, configure the API SMTP service and `ADMIN_SETUP_EMAIL`, then visit `https://your-site.netlify.app/admin/register` and request an emailed code. The code expires in 15 minutes, can be used once, and supports additional administrators only when their login email matches the configured admin mailbox. Alternatively, set `ADMIN_INITIAL_PASSWORD` (at least 12 characters) and `ADMIN_MOBILE` and create an initial administrator with the seed command.
 
 ## Connect Netlify
 

@@ -43,9 +43,13 @@ function roleHome(role: string): string {
 export function LoginPage() {
   const router = useRouter();
   const registered = useSearchParams().get('registered') === '1';
-  const { user, signIn } = useSession();
+  const { user, signIn, setupMfa, verifyMfa, cancelMfa } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaSetupRequired, setMfaSetupRequired] = useState(false);
+  const [mfaSecret, setMfaSecret] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -59,6 +63,15 @@ export function LoginPage() {
     setError('');
     try {
       const result = await signIn(email.trim(), password);
+      if (result.mfaRequired) {
+        setMfaRequired(true);
+        setMfaSetupRequired(result.mfaSetupRequired);
+        if (result.mfaSetupRequired) {
+          const setup = await setupMfa();
+          setMfaSecret(setup.secret);
+        }
+        return;
+      }
       router.replace(roleHome(result.role));
     } catch (cause) {
       setError(showError(cause));
@@ -67,8 +80,82 @@ export function LoginPage() {
     }
   };
 
+  const submitMfa = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const result = await verifyMfa(code);
+      router.replace(roleHome(result.role));
+    } catch (cause) {
+      setError(showError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restartSignIn = () => {
+    cancelMfa();
+    setMfaRequired(false);
+    setMfaSetupRequired(false);
+    setMfaSecret('');
+    setCode('');
+    setError('');
+  };
+
+  const retryMfaSetup = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const setup = await setupMfa();
+      setMfaSecret(setup.secret);
+    } catch (cause) {
+      setError(showError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <AuthFrame title="Sign in to NRI Land Tracking System" description="Access your property and appointment workspace with your password.">
+    <AuthFrame
+      title={mfaRequired ? (mfaSetupRequired ? 'Set up authenticator MFA' : 'Verify authenticator code') : 'Sign in to NRI Land Tracking System'}
+      description={mfaRequired
+        ? (mfaSetupRequired ? 'Administrator and Auditor accounts must enroll an authenticator before accessing the workspace.' : 'Enter the current six-digit code from your authenticator app to continue.')
+        : 'Access your property and appointment workspace with your password.'}
+    >
+      {mfaRequired ? (
+        <form className="auth-form" onSubmit={submitMfa}>
+          {mfaSetupRequired && (
+            <div className="mfa-setup-instructions">
+              <p>Add an account in Google Authenticator, Microsoft Authenticator, or another TOTP app using this key:</p>
+              <p className="mfa-secret" aria-label="Authenticator setup key">{mfaSecret}</p>
+              <p>Use account <strong>{email.trim()}</strong>, issuer <strong>NRI Land Tracking System</strong>, and a 30-second time-based code.</p>
+            </div>
+          )}
+          <label className="form-field">
+            <span>Six-digit authenticator code</span>
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              required
+              value={code}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+            />
+          </label>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          {mfaSetupRequired && !mfaSecret && (
+            <button type="button" className="button button-secondary auth-submit" disabled={busy} onClick={() => { void retryMfaSetup(); }}>
+              Retry authenticator setup
+            </button>
+          )}
+          <button className="button button-primary auth-submit" disabled={busy || (mfaSetupRequired && !mfaSecret)}>
+            {busy ? 'Verifying…' : mfaSetupRequired ? 'Enable MFA and continue' : 'Verify and sign in'}<ArrowRight size={16} />
+          </button>
+          <button type="button" className="auth-switch auth-switch-button" disabled={busy} onClick={restartSignIn}>Restart sign-in</button>
+        </form>
+      ) : (
         <form className="auth-form" onSubmit={submit}>
           <label className="form-field"><span>Email address</span><input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label className="form-field"><span>Password</span><input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
@@ -79,6 +166,7 @@ export function LoginPage() {
           <p className="auth-switch">Local agent? <Link href="/agent/register">Apply to register</Link></p>
           <p className="auth-switch">Administrator? <Link href="/admin/register">Create with setup code</Link></p>
         </form>
+      )}
     </AuthFrame>
   );
 }
@@ -225,7 +313,23 @@ export function AdminRegistrationPage() {
   const [setupCode, setSetupCode] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [requestingCode, setRequestingCode] = useState(false);
+
+  const requestSetupCode = async () => {
+    setRequestingCode(true);
+    setError('');
+    setNotice('');
+    try {
+      const result = await request<{ message: string }>('auth/admin/setup-code', { method: 'POST' });
+      setNotice(result.message);
+    } catch (cause) {
+      setError(showError(cause));
+    } finally {
+      setRequestingCode(false);
+    }
+  };
 
   const submitRegistration = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -245,15 +349,16 @@ export function AdminRegistrationPage() {
   };
 
   return (
-    <AuthFrame title="Administrator signup" description="Create one administrator account with the private setup code configured by the system operator. The code can only be used once.">
+    <AuthFrame title="Administrator signup" description="Request a one-time code at adminlandtrack@gmail.com to create an administrator account. Only this email address is permitted. The code expires after 15 minutes and can only be used once.">
       <form className="auth-form" onSubmit={submitRegistration}>
         <label className="form-field"><span>Full name</span><input autoComplete="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label>
         <label className="form-field"><span>Email address</span><input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label className="form-field"><span>Mobile number</span><input type="tel" autoComplete="tel" required pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={mobile} onChange={(event) => setMobile(event.target.value)} /></label>
         <label className="form-field"><span>Password</span><input type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-        <label className="form-field"><span>Private one-time setup code</span><input type="password" autoComplete="off" minLength={32} required value={setupCode} onChange={(event) => setSetupCode(event.target.value)} /></label>
+        <div className="form-field"><span>Private one-time setup code</span><div className="code-request-row"><input type="password" autoComplete="off" minLength={32} required value={setupCode} onChange={(event) => setSetupCode(event.target.value)} /><button type="button" className="button button-secondary" disabled={requestingCode} onClick={() => { void requestSetupCode(); }}>{requestingCode ? 'Sending…' : 'Email me a code'}</button></div></div>
         <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the NRI Land Tracking System terms and privacy notice.</span></label>
         {error && <p className="form-error" role="alert">{error}</p>}
+        {notice && <p className="success-inline" role="status">{notice}</p>}
         <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Creating administrator…' : 'Create administrator'}<ArrowRight size={16} /></button>
         <p className="auth-switch">Already have an account? <Link href="/login">Sign in</Link></p>
       </form>

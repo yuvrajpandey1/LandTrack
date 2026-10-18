@@ -688,7 +688,7 @@ function SectionPage({ pathname, properties, agents, activeAgents, onReviewPrope
       </>
     );
   }
-  if (pathname.includes('properties')) return <><PageHeading eyebrow="PROPERTY REGISTER" title={pathname.startsWith('/audit') ? 'Property register' : 'My properties'} description="Review status and details for properties in the supported Telangana districts." action={!pathname.startsWith('/audit') && <Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Register property</Link>} /><PropertyTable properties={pathname.startsWith('/audit') ? properties : properties.filter((item) => item.owner === 'You')} audit={pathname.startsWith('/audit')} /></>;
+  if (pathname.includes('properties')) return <><PageHeading eyebrow="PROPERTY REGISTER" title={pathname.startsWith('/audit') ? 'Property register' : 'My properties'} description="Review status and details for properties in the supported Telangana districts." action={!pathname.startsWith('/audit') && <Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Register property</Link>} /><PropertyTable properties={properties} audit={pathname.startsWith('/audit')} /></>;
   const title = pathname.split('/').filter(Boolean).at(-1)?.replaceAll('-', ' ') ?? 'NRI Land Tracking System';
   const formattedTitle = title.replace(/\b\w/g, (letter) => letter.toUpperCase());
   const roleAdmin = pathname.startsWith('/admin');
@@ -764,7 +764,7 @@ export default function NriLandTrackingSystemPage() {
 
   useEffect(() => {
     if (user && permitted && !passwordRoute) void refreshRecords();
-  }, [passwordRoute, permitted, refreshRecords, user]);
+  }, [currentPath, passwordRoute, permitted, refreshRecords, user]);
 
   const reviewProperty = useCallback(async (id: string, status: PropertyStatus) => {
     const action = status === 'Approved' ? 'approve' : 'reject';

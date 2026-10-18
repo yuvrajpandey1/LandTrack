@@ -1,11 +1,29 @@
-import { Controller, Get, Headers, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
+import { z } from 'zod';
 import { CurrentUser, Public, Roles, type AuthUser } from '../../common/auth';
 import { Role } from '@prisma/client';
+import { ZodPipe } from '../../common/zod.pipe';
 import { PaymentsService } from './payments.service';
+
+const paymentLinkCallbackSchema = z.object({
+  razorpay_payment_id: z.string().min(1).max(100),
+  razorpay_payment_link_id: z.string().min(1).max(100),
+  razorpay_payment_link_reference_id: z.string().uuid(),
+  razorpay_payment_link_status: z.string().min(1).max(40),
+  razorpay_signature: z.string().regex(/^[a-fA-F0-9]{64}$/)
+});
+const standardCheckoutCallbackSchema = z.object({
+  razorpay_order_id: z.string().min(1).max(100),
+  razorpay_payment_id: z.string().min(1).max(100),
+  razorpay_signature: z.string().regex(/^[a-fA-F0-9]{64}$/)
+});
+const standardCheckoutOrderSchema = z.object({
+  orderId: z.string().min(1).max(100)
+});
 
 @ApiTags('payments')
 @Controller()
@@ -20,6 +38,59 @@ export class PaymentController {
     const payload: unknown = request.body;
     const signature = process.env.PAYMENT_PROVIDER === 'fake' ? request.headers['x-landtrack-signature'] as string | undefined : razorpaySignature;
     return this.payments.handleWebhook(rawBody, signature, payload);
+  }
+
+  @Roles(Role.NRI)
+  @ApiBearerAuth()
+  @Post('payments/verify-link')
+  verifyPaymentLink(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodPipe(paymentLinkCallbackSchema)) body: z.infer<typeof paymentLinkCallbackSchema>
+  ) {
+    if (process.env.PAYMENT_PROVIDER !== 'razorpay') {
+      throw new BadRequestException({ code: 'PAYMENT_PROVIDER_UNAVAILABLE', message: 'Razorpay payment verification is not enabled.' });
+    }
+    return this.payments.verifyPaymentLink(user.sub, {
+      paymentLinkId: body.razorpay_payment_link_id,
+      referenceId: body.razorpay_payment_link_reference_id,
+      status: body.razorpay_payment_link_status,
+      paymentId: body.razorpay_payment_id,
+      signature: body.razorpay_signature
+    });
+  }
+
+  @Roles(Role.NRI)
+  @ApiBearerAuth()
+  @Post('payments/verify')
+  verifyCheckoutPayment(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodPipe(standardCheckoutCallbackSchema)) body: z.infer<typeof standardCheckoutCallbackSchema>
+  ) {
+    return this.payments.verifyCheckoutPayment(user.sub, {
+      orderId: body.razorpay_order_id,
+      paymentId: body.razorpay_payment_id,
+      signature: body.razorpay_signature
+    });
+  }
+
+  @Roles(Role.NRI)
+  @ApiBearerAuth()
+  @Post('payments/confirm-order')
+  confirmCheckoutOrder(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodPipe(standardCheckoutOrderSchema)) body: z.infer<typeof standardCheckoutOrderSchema>
+  ) {
+    return this.payments.confirmCheckoutOrder(user.sub, body.orderId);
+  }
+
+  @Roles(Role.NRI)
+  @ApiBearerAuth()
+  @Post('payments/demo-confirm-exit')
+  confirmDemoCheckoutExit(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodPipe(standardCheckoutOrderSchema)) body: z.infer<typeof standardCheckoutOrderSchema>
+  ) {
+    return this.payments.confirmDemoCheckoutExit(user.sub, body.orderId);
   }
 
   @Roles(Role.NRI, Role.ADMIN)
@@ -50,7 +121,7 @@ export class PaymentController {
   @Post('dev/checkout/:orderId/complete')
   async completeFakePayment(@Param('orderId') orderId: string, @Res() response: Response) {
     await this.payments.simulatePayment(orderId);
-    response.redirect(303, `${process.env.APP_URL}/app/payments`);
+    response.redirect(303, `${process.env.APP_URL}/app/payments?payment=success&provider=fake&orderId=${encodeURIComponent(orderId)}`);
   }
 
   @Public()
@@ -60,6 +131,6 @@ export class PaymentController {
       response.status(404).send('Not found');
       return;
     }
-    response.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sandbox payment cancelled</title></head><body style="font:16px system-ui;max-width:480px;margin:15vh auto;padding:24px;color:#172554"><h1>Payment not completed</h1><p>You can return to the NRI Land Tracking System and retry checkout.</p><a href="${process.env.APP_URL}/app/payments">Return to NRI Land Tracking System</a></body></html>`);
+    response.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sandbox payment cancelled</title></head><body style="font:16px system-ui;max-width:480px;margin:15vh auto;padding:24px;color:#172554"><h1>Payment not completed</h1><p>You can return to the NRI Land Tracking System and retry checkout.</p><a href="${process.env.APP_URL}/app/payments?payment=failed">Return to NRI Land Tracking System</a></body></html>`);
   }
 }

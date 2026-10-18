@@ -1,9 +1,16 @@
 /// <reference types="jest" />
-import { createTotpSecret, verifyTotp } from './totp';
+import { createTotpSecret, createTotpUrl, verifyTotp } from './totp';
 
 describe('TOTP helpers', () => {
   it('creates a full-length base32 secret', () => {
     expect(createTotpSecret()).toMatch(/^[A-Z2-7]{32}$/);
+  });
+
+  it('creates an authenticator URI with the account and issuer', () => {
+    const uri = createTotpUrl(createTotpSecret(), 'admin@example.com');
+    expect(uri).toContain('otpauth://totp/');
+    expect(uri).toContain(encodeURIComponent('NRI Land Tracking System'));
+    expect(uri).toContain('admin@example.com');
   });
 
   it('verifies the RFC 6238 SHA-1 vector using six-digit codes', () => {

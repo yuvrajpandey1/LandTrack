@@ -29,10 +29,11 @@ type SessionContextValue = {
   loading: boolean;
   error: string | null;
   request: JsonRequest;
-  signIn: (email: string, password: string) => Promise<{ role: AccountRole }>;
+  signIn: (email: string, password: string) => Promise<{ role: AccountRole; mfaRequired: boolean; mfaSetupRequired: boolean }>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   setupMfa: () => Promise<{ secret: string; otpauthUrl: string }>;
-  verifyMfa: (code: string) => Promise<void>;
+  verifyMfa: (code: string) => Promise<{ role: AccountRole }>;
+  cancelMfa: () => void;
   signOut: () => Promise<void>;
 };
 
@@ -95,7 +96,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const request = useCallback<JsonRequest>(async (path, options = {}) => {
     let token = accessToken.current;
     let response = await sendRequest(path, options, token ?? undefined);
-    if (response.status === 401 && token) {
+    const mfaChallengeRequest = path.replace(/^\/+/, '').startsWith('auth/mfa/');
+    if (response.status === 401 && token && !mfaChallengeRequest) {
       token = await refreshSession();
       if (!token) {
         accessToken.current = null;
@@ -112,11 +114,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });
-    const result = await parseResponse<{ accessToken: string; user: AuthUser }>(response);
+    const result = await parseResponse<{
+      accessToken: string;
+      user: AuthUser;
+      mfaRequired: boolean;
+      mfaSetupRequired?: boolean;
+    }>(response);
     accessToken.current = result.accessToken;
-    setUser(result.user);
+    setUser(result.mfaRequired ? null : result.user);
     setError(null);
-    return { role: result.user.role };
+    return {
+      role: result.user.role,
+      mfaRequired: result.mfaRequired,
+      mfaSetupRequired: result.mfaSetupRequired ?? false
+    };
   }, []);
 
   const setupMfa = useCallback(() => request<{ secret: string; otpauthUrl: string }>('auth/mfa/setup', { method: 'POST' }), [request]);
@@ -130,12 +141,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [request]);
 
   const verifyMfa = useCallback(async (code: string) => {
-    const result = await request<{ accessToken: string }>('auth/mfa/verify', {
+    const result = await request<{ accessToken: string; user: AuthUser }>('auth/mfa/verify', {
       method: 'POST',
       body: JSON.stringify({ code })
     });
     accessToken.current = result.accessToken;
+    setUser(result.user);
+    setError(null);
+    return { role: result.user.role };
   }, [request]);
+
+  const cancelMfa = useCallback(() => {
+    accessToken.current = null;
+    setUser(null);
+    setError(null);
+  }, []);
 
   const signOut = useCallback(async () => {
     try {
@@ -143,6 +163,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } finally {
       accessToken.current = null;
       setUser(null);
+      setError(null);
     }
   }, []);
 
@@ -174,7 +195,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refreshSession]);
 
   return (
-    <SessionContext.Provider value={{ user, loading, error, request, signIn, changePassword, setupMfa, verifyMfa, signOut }}>
+    <SessionContext.Provider value={{ user, loading, error, request, signIn, changePassword, setupMfa, verifyMfa, cancelMfa, signOut }}>
       {children}
     </SessionContext.Provider>
   );

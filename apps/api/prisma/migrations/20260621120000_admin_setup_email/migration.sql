@@ -1,0 +1,6 @@
+ALTER TABLE "AdminSignupToken"
+ADD COLUMN "requestedAt" TIMESTAMP(3),
+ADD COLUMN "requestWindowStartedAt" TIMESTAMP(3),
+ADD COLUMN "requestCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "expiresAt" TIMESTAMP(3),
+ADD COLUMN "failedAttempts" INTEGER NOT NULL DEFAULT 0;

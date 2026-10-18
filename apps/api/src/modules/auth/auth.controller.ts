@@ -69,6 +69,12 @@ export class AuthController {
   }
 
   @Public()
+  @Post('auth/admin/setup-code')
+  requestAdminSetupCode() {
+    return this.auth.sendAdminSetupCode();
+  }
+
+  @Public()
   @Post('auth/register/admin')
   registerAdmin(@Body(new ZodPipe(registerAdminSchema)) body: z.infer<typeof registerAdminSchema>) {
     return this.auth.registerAdmin(body);
@@ -90,8 +96,9 @@ export class AuthController {
   @Post('auth/login')
   async login(@Body(new ZodPipe(loginSchema)) body: z.infer<typeof loginSchema>, @Res({ passthrough: true }) response: Response) {
     const result = await this.auth.login(body.email, body.password);
-    this.setRefreshCookie(response, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    if ('refreshToken' in result) this.setRefreshCookie(response, result.refreshToken);
+    else response.clearCookie('landtrack_refresh', { path: '/api/v1/auth' });
+    return result;
   }
 
   @Public()
@@ -117,15 +124,17 @@ export class AuthController {
   @ApiBearerAuth()
   @Post('auth/mfa/setup')
   setupMfa(@CurrentUser() user: AuthUser) {
-    return this.auth.setupMfa(user.sub);
+    return this.auth.setupMfa(user);
   }
 
   @MfaAllowed()
   @Roles('ADMIN', 'AUDITOR')
   @ApiBearerAuth()
   @Post('auth/mfa/verify')
-  verifyMfa(@CurrentUser() user: AuthUser, @Body(new ZodPipe(codeSchema)) body: z.infer<typeof codeSchema>) {
-    return this.auth.verifyMfa(user.sub, body.code);
+  async verifyMfa(@CurrentUser() user: AuthUser, @Body(new ZodPipe(codeSchema)) body: z.infer<typeof codeSchema>, @Res({ passthrough: true }) response: Response) {
+    const result = await this.auth.verifyMfa(user, body.code);
+    this.setRefreshCookie(response, result.refreshToken);
+    return { accessToken: result.accessToken, user: result.user };
   }
 
   @Get('me')

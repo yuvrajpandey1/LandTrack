@@ -6,7 +6,7 @@ import { ApiError, useSession } from './session-provider';
 
 type PropertyOption = { id: string; name: string; status: string };
 type SlotOption = { startUtc: string; localTime: string; istTime: string; available: boolean };
-type AppointmentResult = { id: string; status: string; startUtc: string; mode: string };
+type AppointmentResult = { id: string; status: string; startUtc: string; mode: string; googleMeetUrl: string | null };
 
 function todayInIndia(): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -79,7 +79,7 @@ export function AppointmentBooking() {
   };
 
   if (appointment) {
-    return <section className="card success-card"><div className="success-panel"><span><Check size={22} /></span><div><h2>Appointment requested</h2><p>Your request is saved. The NRI Land Tracking System team will assign an agent and confirm the appointment.</p></div></div><div className="summary-item"><span>Reference</span><strong>{appointment.id}</strong></div><div className="summary-item"><span>Time (IST)</span><strong>{new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(new Date(appointment.startUtc))}</strong></div><div className="summary-item"><span>Mode</span><strong>{appointment.mode.replace('_', ' ')}</strong></div></section>;
+    return <section className="card success-card"><div className="success-panel"><span><Check size={22} /></span><div><h2>Appointment booked</h2><p>Your time is reserved on the admin Google Calendar, and a calendar invitation has been sent to your email. The LandTrack team will assign an agent if required.</p></div></div><div className="summary-item"><span>Reference</span><strong>{appointment.id}</strong></div><div className="summary-item"><span>Time (IST)</span><strong>{new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(new Date(appointment.startUtc))}</strong></div><div className="summary-item"><span>Mode</span><strong>{appointment.mode.replace('_', ' ')}</strong></div>{appointment.googleMeetUrl && <a className="button button-primary button-wide" href={appointment.googleMeetUrl} target="_blank" rel="noreferrer">Join Google Meet</a>}</section>;
   }
 
   return (

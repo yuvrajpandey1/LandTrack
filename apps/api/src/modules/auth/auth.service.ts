@@ -2,10 +2,11 @@ import { BadRequestException, ConflictException, HttpException, HttpStatus, Inje
 import { JwtService } from '@nestjs/jwt';
 import { AccountStatus, AgentApproval, ConsentType, Prisma, Role } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { createHash, createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../../common/audit.service';
-import { createTotpSecret, verifyTotp } from '../../common/totp';
+import { createTotpSecret, createTotpUrl, verifyTotp } from '../../common/totp';
+import { EmailService } from '../../providers/services/email.service';
 import type { AuthUser } from '../../common/auth';
 
 type RegisterNri = {
@@ -25,7 +26,8 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-    private readonly audit: AuditService
+    private readonly audit: AuditService,
+    private readonly email: EmailService
   ) {}
 
   async registerNri(input: RegisterNri): Promise<{ status: string }> {
@@ -66,37 +68,97 @@ export class AuthService {
     return { status: 'ACTIVE', approval: AgentApproval.PENDING };
   }
 
-  async registerAdmin(input: { name: string; email: string; mobile: string; password: string; setupCode: string }): Promise<{ status: string }> {
-    const configuredCode = process.env.ADMIN_SIGNUP_CODE;
-    if (!configuredCode || !this.secretsMatch(configuredCode, input.setupCode)) {
-      if (!configuredCode) {
-        throw new ServiceUnavailableException({ code: 'ADMIN_SIGNUP_UNAVAILABLE', message: 'Administrator signup has not been configured.' });
-      }
-      throw new UnauthorizedException({ code: 'ADMIN_SETUP_CODE_INVALID', message: 'The administrator setup code is invalid or has already been used.' });
+  async sendAdminSetupCode(): Promise<{ message: string }> {
+    const recipient = (process.env.ADMIN_SETUP_EMAIL || process.env.GOOGLE_CALENDAR_ADMIN_EMAIL || 'adminlandtrack@gmail.com').trim().toLowerCase();
+    const now = new Date();
+    const setupCode = randomBytes(32).toString('base64url');
+    const setupCodeHash = tokenHash(setupCode);
+    const issue = await this.prisma.$transaction(async (transaction) => {
+      await transaction.adminSignupToken.upsert({
+        where: { id: 'initial' },
+        create: { id: 'initial', tokenHash: tokenHash(randomUUID()) },
+        update: {}
+      });
+      await transaction.$queryRaw`SELECT "id" FROM "AdminSignupToken" WHERE "id" = 'initial' FOR UPDATE`;
+
+      const current = await transaction.adminSignupToken.findUniqueOrThrow({ where: { id: 'initial' } });
+      if (current.requestedAt && now.getTime() - current.requestedAt.getTime() < 60_000) return 'rate_limited' as const;
+      const windowStartedAt = current.requestWindowStartedAt;
+      const withinRateWindow = windowStartedAt !== null && now.getTime() - windowStartedAt.getTime() < 60 * 60_000;
+      if (withinRateWindow && current.requestCount >= 5) return 'rate_limited' as const;
+
+      await transaction.adminSignupToken.update({
+        where: { id: 'initial' },
+        data: {
+          tokenHash: setupCodeHash,
+          requestedAt: now,
+          requestWindowStartedAt: withinRateWindow ? windowStartedAt : now,
+          requestCount: withinRateWindow ? { increment: 1 } : 1,
+          expiresAt: new Date(now.getTime() + 15 * 60_000),
+          consumedAt: null,
+          failedAttempts: 0
+        }
+      });
+      return 'issued' as const;
+    });
+
+    if (issue === 'rate_limited') {
+      throw new HttpException({ code: 'ADMIN_SETUP_CODE_RATE_LIMITED', message: 'A setup code was recently requested. Wait one minute before requesting another.' }, HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
-    const setupTokenHash = tokenHash(configuredCode);
     try {
-      const user = await this.prisma.$transaction(async (transaction) => {
+      await this.email.send(
+        recipient,
+        'Your LandTrack administrator setup code',
+        `Your one-time LandTrack administrator setup code is:\n\n${setupCode}\n\nIt expires in 15 minutes and can be used once. If you did not request this, you can ignore this email.`
+      );
+    } catch (error) {
+      await this.prisma.adminSignupToken.updateMany({
+        where: { id: 'initial', tokenHash: setupCodeHash, consumedAt: null },
+        data: { consumedAt: new Date(), requestedAt: null }
+      });
+      throw new ServiceUnavailableException({ code: 'ADMIN_SETUP_EMAIL_FAILED', message: 'The setup email could not be sent. Check the configured email service and try again later.' }, { cause: error });
+    }
+
+    return { message: `A one-time administrator signup code has been sent to ${recipient}. It expires in 15 minutes.` };
+  }
+
+  async registerAdmin(input: { name: string; email: string; mobile: string; password: string; setupCode: string }): Promise<{ status: string }> {
+    const allowedEmail = (process.env.ADMIN_SETUP_EMAIL || process.env.GOOGLE_CALENDAR_ADMIN_EMAIL || 'adminlandtrack@gmail.com').trim().toLowerCase();
+    if (input.email.trim().toLowerCase() !== allowedEmail) {
+      throw new BadRequestException({ code: 'ADMIN_EMAIL_NOT_ALLOWED', message: `Administrator signup is restricted to ${allowedEmail}.` });
+    }
+    const setupTokenHash = tokenHash(input.setupCode);
+    try {
+      const result = await this.prisma.$transaction(async (transaction) => {
         await transaction.adminSignupToken.upsert({
           where: { id: 'initial' },
-          create: { id: 'initial', tokenHash: setupTokenHash },
+          create: { id: 'initial', tokenHash: tokenHash(randomUUID()) },
           update: {}
         });
-        const adminCount = await transaction.user.count({
-          where: { role: { in: [Role.ADMIN, Role.AUDITOR] } }
-        });
-        if (adminCount > 0) {
-          throw new ConflictException({ code: 'ADMIN_ALREADY_EXISTS', message: 'Administrator signup is only available before an administrator account exists.' });
+        await transaction.$queryRaw`SELECT "id" FROM "AdminSignupToken" WHERE "id" = 'initial' FOR UPDATE`;
+        const token = await transaction.adminSignupToken.findUniqueOrThrow({ where: { id: 'initial' } });
+        const validEmailCode = this.secretsMatch(token.tokenHash, setupTokenHash) &&
+          token.consumedAt === null &&
+          token.expiresAt !== null &&
+          token.expiresAt.getTime() > Date.now() &&
+          token.failedAttempts < 5;
+        if (!validEmailCode) {
+          if (token.expiresAt && token.expiresAt.getTime() > Date.now() && token.consumedAt === null && token.failedAttempts < 5) {
+            const failedAttempts = token.failedAttempts + 1;
+            await transaction.adminSignupToken.update({
+              where: { id: 'initial' },
+              data: { failedAttempts, ...(failedAttempts >= 5 ? { consumedAt: new Date() } : {}) }
+            });
+          }
+          return { error: 'invalid_code' as const };
         }
-        const consumed = await transaction.adminSignupToken.updateMany({
-          where: { id: 'initial', tokenHash: setupTokenHash, consumedAt: null },
+
+        const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+        await transaction.adminSignupToken.update({
+          where: { id: 'initial' },
           data: { consumedAt: new Date() }
         });
-        if (consumed.count !== 1) {
-          throw new ConflictException({ code: 'ADMIN_SETUP_CODE_USED', message: 'The administrator setup code has already been used.' });
-        }
         return transaction.user.create({
           data: {
             name: input.name.trim(),
@@ -110,6 +172,10 @@ export class AuthService {
           select: { id: true }
         });
       });
+      if ('error' in result) {
+        throw new UnauthorizedException({ code: 'ADMIN_SETUP_CODE_INVALID', message: 'The administrator setup code is invalid, expired, or has already been used.' });
+      }
+      const user = result;
       await this.audit.record({ action: 'ADMIN_ACCOUNT_REGISTERED', entity: 'User', entityId: user.id, after: { role: Role.ADMIN } });
       return { status: 'ACTIVE' };
     } catch (error) {
@@ -266,13 +332,29 @@ export class AuthService {
     return { status: result.status };
   }
 
-  async login(email: string, password: string): Promise<{ accessToken: string; refreshToken: string; user: object }> {
+  async login(email: string, password: string): Promise<
+    | { accessToken: string; refreshToken: string; user: object; mfaRequired: false }
+    | { accessToken: string; user: object; mfaRequired: true; mfaSetupRequired: boolean }
+  > {
     const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user || !(await argon2.verify(user.passwordHash, password))) {
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email or password is incorrect.' });
     }
     if (user.status !== AccountStatus.ACTIVE) throw new UnauthorizedException({ code: 'ACCOUNT_INACTIVE', message: 'This account is inactive. Contact NRI Land Tracking System support.' });
-    return { ...(await this.createTokens(user.id, user.role, user.email)), user: this.publicUser(user) };
+    if (user.role === Role.ADMIN || user.role === Role.AUDITOR) {
+      const accessToken = await this.jwt.signAsync(
+        { sub: user.id, role: user.role, email: user.email, mfaPending: true } satisfies AuthUser,
+        { expiresIn: '10m' }
+      );
+      await this.audit.record({ actorId: user.id, actorRole: user.role, action: 'MFA_CHALLENGE_ISSUED', entity: 'User', entityId: user.id });
+      return {
+        accessToken,
+        user: this.publicUser(user),
+        mfaRequired: true,
+        mfaSetupRequired: !user.mfaEnabled || !user.mfaSecret
+      };
+    }
+    return { ...(await this.createTokens(user.id, user.role, user.email)), user: this.publicUser(user), mfaRequired: false };
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ accessToken: string; refreshToken: string }> {
@@ -290,10 +372,15 @@ export class AuthService {
       this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
       this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
       this.prisma.refreshToken.create({
-        data: { userId, tokenHash: tokenHash(refreshToken), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000) }
+        data: {
+          userId,
+          tokenHash: tokenHash(refreshToken),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000),
+          mfaVerified: user.role === Role.ADMIN || user.role === Role.AUDITOR
+        }
       })
     ]);
-    const accessToken = await this.jwt.signAsync({ sub: user.id, role: user.role, email: user.email }, { expiresIn: '15m' });
+    const accessToken = await this.jwt.signAsync({ sub: user.id, role: user.role, email: user.email, mfaVerified: true }, { expiresIn: '15m' });
     await this.audit.record({ actorId: user.id, actorRole: user.role, action: 'PASSWORD_CHANGED', entity: 'User', entityId: user.id });
     return { accessToken, refreshToken };
   }
@@ -304,12 +391,17 @@ export class AuthService {
     return timingSafeEqual(expectedHash, actualHash);
   }
 
-  async createTokens(userId: string, role: Role, email: string, mfaPending = false): Promise<{ accessToken: string; refreshToken: string }> {
+  async createTokens(userId: string, role: Role, email: string): Promise<{ accessToken: string; refreshToken: string }> {
     const refreshToken = randomUUID() + randomUUID();
     await this.prisma.refreshToken.create({
-      data: { userId, tokenHash: tokenHash(refreshToken), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000) }
+      data: {
+        userId,
+        tokenHash: tokenHash(refreshToken),
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000),
+        mfaVerified: true
+      }
     });
-    const payload: AuthUser = { sub: userId, role, email, ...(mfaPending ? { mfaPending: true } : {}) };
+    const payload: AuthUser = { sub: userId, role, email, mfaVerified: true };
     const accessToken = await this.jwt.signAsync(payload, { expiresIn: '15m' });
     return { accessToken, refreshToken };
   }
@@ -322,14 +414,25 @@ export class AuthService {
     if (!existing || existing.revokedAt || existing.expiresAt <= new Date() || existing.user.status !== AccountStatus.ACTIVE) {
       throw new UnauthorizedException({ code: 'REFRESH_INVALID', message: 'The refresh token is invalid or expired.' });
     }
+    const mfaRole = existing.user.role === Role.ADMIN || existing.user.role === Role.AUDITOR;
+    if (mfaRole && (!existing.mfaVerified || !existing.user.mfaEnabled)) {
+      throw new UnauthorizedException({ code: 'MFA_REAUTH_REQUIRED', message: 'Sign in again and complete authenticator verification.' });
+    }
     const nextToken = randomUUID() + randomUUID();
     await this.prisma.$transaction([
       this.prisma.refreshToken.update({ where: { id: existing.id }, data: { revokedAt: new Date() } }),
-      this.prisma.refreshToken.create({ data: { userId: existing.userId, tokenHash: tokenHash(nextToken), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000) } })
+      this.prisma.refreshToken.create({
+        data: {
+          userId: existing.userId,
+          tokenHash: tokenHash(nextToken),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000),
+          mfaVerified: existing.mfaVerified
+        }
+      })
     ]);
     return {
       accessToken: await this.jwt.signAsync({
-        sub: existing.userId, role: existing.user.role, email: existing.user.email
+        sub: existing.userId, role: existing.user.role, email: existing.user.email, mfaVerified: existing.mfaVerified
       }, { expiresIn: '15m' }),
       refreshToken: nextToken
     };
@@ -342,23 +445,50 @@ export class AuthService {
     return { status: 'logged_out' };
   }
 
-  async setupMfa(userId: string): Promise<{ secret: string; otpauthUrl: string }> {
+  async setupMfa(challenge: AuthUser): Promise<{ secret: string; otpauthUrl: string }> {
+    if (!challenge.mfaPending) throw new UnauthorizedException({ code: 'MFA_CHALLENGE_REQUIRED', message: 'Sign in before setting up authenticator MFA.' });
+    const userId = challenge.sub;
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.status !== AccountStatus.ACTIVE) throw new UnauthorizedException({ code: 'ACCOUNT_INACTIVE', message: 'This account is inactive.' });
     if (user.role !== Role.ADMIN && user.role !== Role.AUDITOR) throw new UnauthorizedException({ code: 'MFA_ROLE_REQUIRED', message: 'MFA setup is available only to Admin and Auditor accounts.' });
-    const secret = createTotpSecret();
-    await this.prisma.user.update({ where: { id: userId }, data: { mfaSecret: secret, mfaEnabled: false } });
-    return { secret, otpauthUrl: `otpauth://totp/NRI%20Land%20Tracking%20System:${encodeURIComponent(user.email)}?secret=${secret}&issuer=NRI%20Land%20Tracking%20System&algorithm=SHA1&digits=6&period=30` };
+    if (user.mfaEnabled && user.mfaSecret) throw new BadRequestException({ code: 'MFA_ALREADY_ENABLED', message: 'Authenticator MFA is already enabled for this account.' });
+    const secret = user.mfaSecret ?? createTotpSecret();
+    if (!user.mfaSecret || user.mfaEnabled) {
+      await this.prisma.user.update({ where: { id: userId }, data: { mfaSecret: secret, mfaEnabled: false } });
+    }
+    return { secret, otpauthUrl: createTotpUrl(secret, user.email) };
   }
 
-  async verifyMfa(userId: string, code: string): Promise<{ accessToken: string }> {
+  async verifyMfa(challenge: AuthUser, code: string): Promise<{ accessToken: string; refreshToken: string; user: object }> {
+    if (!challenge.mfaPending) throw new UnauthorizedException({ code: 'MFA_CHALLENGE_REQUIRED', message: 'Sign in before verifying authenticator MFA.' });
+    const userId = challenge.sub;
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    if (!user.mfaSecret || !verifyTotp(user.mfaSecret, code)) {
+    if (user.status !== AccountStatus.ACTIVE) throw new UnauthorizedException({ code: 'ACCOUNT_INACTIVE', message: 'This account is inactive.' });
+    if ((user.role !== Role.ADMIN && user.role !== Role.AUDITOR) || !user.mfaSecret || !verifyTotp(user.mfaSecret, code)) {
       throw new UnauthorizedException({ code: 'MFA_INVALID', message: 'The authenticator code is invalid.' });
     }
-    await this.prisma.user.update({ where: { id: userId }, data: { mfaEnabled: true } });
-    const accessToken = await this.jwt.signAsync({ sub: user.id, role: user.role, email: user.email }, { expiresIn: '15m' });
-    await this.audit.record({ actorId: user.id, actorRole: user.role, action: 'MFA_ENABLED', entity: 'User', entityId: user.id });
-    return { accessToken };
+    const refreshToken = randomUUID() + randomUUID();
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { mfaEnabled: true } }),
+      this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+      this.prisma.refreshToken.create({
+        data: {
+          userId,
+          tokenHash: tokenHash(refreshToken),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000),
+          mfaVerified: true
+        }
+      })
+    ]);
+    const accessToken = await this.jwt.signAsync({ sub: user.id, role: user.role, email: user.email, mfaVerified: true }, { expiresIn: '15m' });
+    await this.audit.record({
+      actorId: user.id,
+      actorRole: user.role,
+      action: user.mfaEnabled ? 'MFA_VERIFIED' : 'MFA_ENABLED',
+      entity: 'User',
+      entityId: user.id
+    });
+    return { accessToken, refreshToken, user: this.publicUser(user) };
   }
 
   async getProfile(userId: string): Promise<object> {

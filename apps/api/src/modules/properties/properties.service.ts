@@ -200,8 +200,11 @@ export class PropertiesService {
     if (property.status !== PropertyStatus.DRAFT && property.status !== PropertyStatus.REJECTED && property.status !== PropertyStatus.PAYMENT_PENDING) {
       throw new BadRequestException({ code: 'INVALID_PROPERTY_TRANSITION', message: 'This property cannot be submitted in its current status.' });
     }
-    await this.prisma.property.update({ where: { id }, data: { status: PropertyStatus.PAYMENT_PENDING, submittedAt: new Date() } });
-    await this.audit.record({ actorId: userId, actorRole: role, action: 'PROPERTY_SUBMISSION_REQUESTED', entity: 'Property', entityId: id, ip, userAgent });
+    await this.prisma.property.update({
+      where: { id },
+      data: { status: PropertyStatus.PAYMENT_PENDING, submittedAt: null, rejectionReason: null }
+    });
+    await this.audit.record({ actorId: userId, actorRole: role, action: 'PROPERTY_PAYMENT_REQUESTED', entity: 'Property', entityId: id, after: { status: PropertyStatus.PAYMENT_PENDING }, ip, userAgent });
     return payments.createOrder(id, userId);
   }
 

@@ -1,9 +1,10 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { AccountStatus, AgentApproval, AppointmentMode, AppointmentStatus, ConsentType, Prisma, Role } from '@prisma/client';
 import { createHmac, randomUUID } from 'node:crypto';
 import { AuditService } from '../../common/audit.service';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { GoogleCalendarService } from './google-calendar.service';
 import type { AuthUser } from '../../common/auth';
 
 const OPEN_STATUSES: AppointmentStatus[] = [AppointmentStatus.REQUESTED, AppointmentStatus.AGENT_ASSIGNED, AppointmentStatus.CONFIRMED];
@@ -28,7 +29,8 @@ export class AppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
-    private readonly audit: AuditService
+    private readonly audit: AuditService,
+    private readonly googleCalendar: GoogleCalendarService
   ) {}
 
   async slots(dateValue: string, timeZone: string) {
@@ -74,6 +76,9 @@ export class AppointmentsService {
   }
 
   async book(input: BookingInput, user: AuthUser, ip?: string, userAgent?: string, sendNotifications = true) {
+    if (!this.googleCalendar.isConfigured()) {
+      throw new ServiceUnavailableException({ code: 'GOOGLE_CALENDAR_NOT_CONFIGURED', message: 'Google Calendar booking is not configured. An administrator must connect the admin Google account before appointments can be booked.' });
+    }
     const property = await this.prisma.property.findUnique({ where: { id: input.propertyId } });
     if (!property || (user.role !== Role.ADMIN && property.ownerId !== user.sub)) {
       throw new NotFoundException({ code: 'PROPERTY_NOT_FOUND', message: 'Property was not found.' });
@@ -114,14 +119,41 @@ export class AppointmentsService {
       });
       return created;
     }, { isolationLevel: 'Serializable' });
+    let calendarEvent: { eventId: string; meetUrl: string | null } | undefined;
+    try {
+      calendarEvent = await this.googleCalendar.createAppointment({
+        appointmentId: appointment.id,
+        propertyName: appointment.property.name,
+        nriName: appointment.nri.name,
+        nriEmail: appointment.nri.email,
+        mode: appointment.mode,
+        startUtc: appointment.startUtc,
+        endUtc: appointment.endUtc
+      });
+      await this.prisma.appointment.update({
+        where: { id: appointment.id },
+        data: { googleCalendarEventId: calendarEvent.eventId, googleMeetUrl: calendarEvent.meetUrl }
+      });
+    } catch (cause) {
+      await this.prisma.appointment.update({ where: { id: appointment.id }, data: { status: AppointmentStatus.CANCELLED } });
+      if (calendarEvent) {
+        try {
+          await this.googleCalendar.deleteEvent(calendarEvent.eventId);
+        } catch (cleanupError) {
+          console.error(`Failed to remove Google Calendar event for cancelled appointment ${appointment.id}.`, cleanupError);
+        }
+      }
+      throw cause;
+    }
+    if (!calendarEvent) throw new ServiceUnavailableException({ code: 'GOOGLE_CALENDAR_EVENT_FAILED', message: 'Google Calendar did not create the appointment. Please try again.' });
     if (sendNotifications) {
-      await this.notifications.queueEmail(process.env.ADMIN_NOTIFY_EMAIL!, 'New NRI Land Tracking System appointment request', `${appointment.nri.name} requested a ${appointment.mode} appointment for ${appointment.property.name} at ${appointment.startUtc.toISOString()}.`);
+      await this.notifications.queueEmail(process.env.GOOGLE_CALENDAR_ADMIN_EMAIL || 'adminlandtrack@gmail.com', 'New NRI Land Tracking System appointment request', `${appointment.nri.name} requested a ${appointment.mode} appointment for ${appointment.property.name} at ${appointment.startUtc.toISOString()}.`);
       if (appointment.nri.whatsappNumber) {
         await this.notifications.queueWhatsApp(appointment.nri.id, appointment.nri.whatsappNumber, 'appointment_requested_admin', { propertyName: appointment.property.name });
       }
       await this.audit.record({ actorId: user.sub, actorRole: user.role, action: 'APPOINTMENT_REQUESTED', entity: 'Appointment', entityId: appointment.id, after: { status: appointment.status, startUtc: appointment.startUtc }, ip, userAgent });
     }
-    return appointment;
+    return { ...appointment, googleCalendarEventId: calendarEvent.eventId, googleMeetUrl: calendarEvent.meetUrl };
   }
 
   async list(user: AuthUser) {
@@ -156,6 +188,7 @@ export class AppointmentsService {
     const hours = Number((await this.prisma.setting.findUnique({ where: { key: 'appointmentCancelCutoffHours' } }))?.value ?? 2);
     if (appointment.startUtc.getTime() - Date.now() < hours * 60 * 60_000) throw new BadRequestException({ code: 'CANCELLATION_CUTOFF', message: `Appointments must be cancelled at least ${hours} hours before their start time.` });
     const result = await this.prisma.appointment.update({ where: { id }, data: { status: AppointmentStatus.CANCELLED } });
+    if (appointment.googleCalendarEventId) await this.googleCalendar.deleteEvent(appointment.googleCalendarEventId);
     await this.audit.record({ actorId: user.sub, actorRole: user.role, action: 'APPOINTMENT_CANCELLED', entity: 'Appointment', entityId: id, ip, userAgent });
     return result;
   }
@@ -177,7 +210,8 @@ export class AppointmentsService {
       throw new ConflictException({ code: 'APPOINTMENT_CHANGED', message: 'The appointment changed while it was being rescheduled. Refresh and try again.' });
     }
     const moved = await this.prisma.appointment.findUniqueOrThrow({ where: { id } });
-    await this.notifications.queueEmail(process.env.ADMIN_NOTIFY_EMAIL!, 'New NRI Land Tracking System appointment request', `${next.nri.name} rescheduled a ${next.mode} appointment for ${next.property.name} at ${next.startUtc.toISOString()}.`);
+    if (old.googleCalendarEventId) await this.googleCalendar.deleteEvent(old.googleCalendarEventId);
+    await this.notifications.queueEmail(process.env.GOOGLE_CALENDAR_ADMIN_EMAIL || 'adminlandtrack@gmail.com', 'New NRI Land Tracking System appointment request', `${next.nri.name} rescheduled a ${next.mode} appointment for ${next.property.name} at ${next.startUtc.toISOString()}.`);
     if (next.nri.whatsappNumber) {
       await this.notifications.queueWhatsApp(next.nri.id, next.nri.whatsappNumber, 'appointment_requested_admin', { propertyName: next.property.name });
     }

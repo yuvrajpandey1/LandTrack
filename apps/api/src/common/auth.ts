@@ -9,6 +9,7 @@ export interface AuthUser {
   role: Role;
   email: string;
   mfaPending?: boolean;
+  mfaVerified?: boolean;
 }
 
 export type AuthenticatedRequest = Request & { user?: AuthUser };
@@ -33,6 +34,10 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const claims = await this.jwt.verifyAsync<AuthUser>(token);
       if (!claims.sub || !claims.role) throw new Error('Invalid claims');
+      const mfaRole = claims.role === 'ADMIN' || claims.role === 'AUDITOR';
+      if (mfaRole && !claims.mfaVerified && !claims.mfaPending) {
+        throw new UnauthorizedException({ code: 'MFA_REAUTH_REQUIRED', message: 'Sign in again and complete authenticator verification.' });
+      }
       if (claims.mfaPending && !this.reflector.getAllAndOverride<boolean>('mfaAllowed', [context.getHandler(), context.getClass()])) {
         throw new ForbiddenException({ code: 'MFA_REQUIRED', message: 'Complete MFA setup before accessing this resource.' });
       }
@@ -40,6 +45,7 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     } catch (error) {
       if (error instanceof ForbiddenException) throw error;
+      if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException({ code: 'INVALID_TOKEN', message: 'The access token is invalid or expired.' });
     }
   }

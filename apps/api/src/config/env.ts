@@ -43,8 +43,13 @@ const environmentSchema = z.object({
   ADMIN_NAME: z.string().min(2).max(120).optional(),
   ADMIN_MOBILE: z.string().regex(/^\+[1-9]\d{7,14}$/).optional(),
   ADMIN_INITIAL_PASSWORD: z.string().optional(),
-  ADMIN_SIGNUP_CODE: z.string().min(32).optional().or(z.literal('')),
-  ADMIN_NOTIFY_EMAIL: z.string().email()
+  ADMIN_NOTIFY_EMAIL: z.string().email(),
+  ADMIN_SETUP_EMAIL: z.string().email().default('adminlandtrack@gmail.com'),
+  GOOGLE_CALENDAR_ADMIN_EMAIL: z.string().email().default('adminlandtrack@gmail.com'),
+  GOOGLE_CALENDAR_ID: z.string().optional().default('primary'),
+  GOOGLE_CALENDAR_CLIENT_ID: z.string().optional().or(z.literal('')),
+  GOOGLE_CALENDAR_CLIENT_SECRET: z.string().optional().or(z.literal('')),
+  GOOGLE_CALENDAR_REFRESH_TOKEN: z.string().optional().or(z.literal(''))
 }).superRefine((env, context) => {
   if (env.SMS_PROVIDER === 'twilio_verify') {
     const hasApiKey = Boolean(env.TWILIO_API_KEY_SID && env.TWILIO_API_KEY_SECRET);
@@ -62,23 +67,25 @@ const environmentSchema = z.object({
   if (env.SMS_PROVIDER === 'cloud' && (!env.SMS_API_URL || !env.SMS_API_TOKEN)) {
     context.addIssue({ code: 'custom', message: 'SMS_API_URL and SMS_API_TOKEN are required when SMS_PROVIDER=cloud.' });
   }
+  if (env.PAYMENT_PROVIDER === 'razorpay' && (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET)) {
+    context.addIssue({ code: 'custom', message: 'RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required when PAYMENT_PROVIDER=razorpay.' });
+  }
+  const googleCalendarCredentials = [env.GOOGLE_CALENDAR_CLIENT_ID, env.GOOGLE_CALENDAR_CLIENT_SECRET, env.GOOGLE_CALENDAR_REFRESH_TOKEN];
+  if (googleCalendarCredentials.some(Boolean) && googleCalendarCredentials.some((credential) => !credential)) {
+    context.addIssue({ code: 'custom', message: 'GOOGLE_CALENDAR_CLIENT_ID, GOOGLE_CALENDAR_CLIENT_SECRET, and GOOGLE_CALENDAR_REFRESH_TOKEN must be configured together.' });
+  }
   if (env.NODE_ENV === 'production') {
     for (const provider of [env.SMS_PROVIDER, env.WHATSAPP_PROVIDER, env.PAYMENT_PROVIDER]) {
       if (provider === 'fake') context.addIssue({ code: 'custom', message: 'Fake providers cannot be enabled in production.' });
-    }
-    const hasInitialAdminPassword = Boolean(env.ADMIN_INITIAL_PASSWORD && env.ADMIN_INITIAL_PASSWORD.length >= 12);
-    const hasAdminSignupCode = Boolean(env.ADMIN_SIGNUP_CODE && env.ADMIN_SIGNUP_CODE.length >= 32);
-    if (!hasInitialAdminPassword && !hasAdminSignupCode) {
-      context.addIssue({ code: 'custom', message: 'Production requires either an ADMIN_INITIAL_PASSWORD of at least 12 characters or an ADMIN_SIGNUP_CODE of at least 32 characters.' });
-    }
-    if (env.PAYMENT_PROVIDER === 'razorpay' && (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET || !env.RAZORPAY_WEBHOOK_SECRET)) {
-      context.addIssue({ code: 'custom', message: 'Razorpay API and webhook credentials are required.' });
     }
     if (env.WHATSAPP_PROVIDER === 'cloud' && (!env.WHATSAPP_ACCESS_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID)) {
       context.addIssue({ code: 'custom', message: 'WhatsApp Cloud API credentials are required.' });
     }
     if (env.WHATSAPP_PROVIDER === 'cloud' && !env.WHATSAPP_APP_SECRET) {
       context.addIssue({ code: 'custom', message: 'WHATSAPP_APP_SECRET is required to validate webhooks.' });
+    }
+    if (env.PAYMENT_PROVIDER === 'razorpay' && !env.RAZORPAY_WEBHOOK_SECRET) {
+      context.addIssue({ code: 'custom', message: 'RAZORPAY_WEBHOOK_SECRET is required in production to validate Razorpay webhooks.' });
     }
   }
 });

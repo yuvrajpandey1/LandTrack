@@ -1,0 +1,2 @@
+ALTER TABLE "RefreshToken"
+ADD COLUMN "mfaVerified" BOOLEAN NOT NULL DEFAULT false;

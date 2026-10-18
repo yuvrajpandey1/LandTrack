@@ -29,10 +29,6 @@ async function main() {
     throw new Error('Set ADMIN_EMAIL when using ADMIN_INITIAL_PASSWORD to seed the initial administrator.');
   }
 
-  if (!password && (!process.env.ADMIN_SIGNUP_CODE || process.env.ADMIN_SIGNUP_CODE.length < 32)) {
-    throw new Error('Set ADMIN_INITIAL_PASSWORD or configure an ADMIN_SIGNUP_CODE of at least 32 characters before seeding.');
-  }
-
   if (password && email) {
     const existingAdmin = await prisma.user.findUnique({ where: { email } });
     if (!existingAdmin) {
