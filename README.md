@@ -6,18 +6,21 @@ NRI Land Tracking System is a pnpm monorepo for the Hyderabad, Telangana propert
 
 - Node.js 20
 - pnpm 9.12.3 (available through Corepack)
-- Docker Desktop, for local PostgreSQL, Redis, MinIO, MailHog, and ClamAV services
+- Docker Desktop or Podman Desktop, for local PostgreSQL, Redis, RustFS, MailHog, and ClamAV services
 
 ## Run locally
 
 1. Install packages with `corepack pnpm install`.
 2. Copy `.env.example` to `apps/api/.env`; set unique values of at least 32 characters for the JWT and OTP secrets. To seed an initial administrator, provide an E.164 `ADMIN_MOBILE`, `ADMIN_EMAIL`, and `ADMIN_INITIAL_PASSWORD` (at least 12 characters). Alternatively, leave `ADMIN_INITIAL_PASSWORD` empty, configure outbound email in `SMTP_URL` and `MAIL_FROM`, set `ADMIN_SETUP_EMAIL=adminlandtrack@gmail.com`, seed the database, and request an emailed one-time setup code from the administrator signup page. The code expires in 15 minutes, is stored only as a hash, and can be used once with up to five verification attempts. Requests are limited to one per minute and five per hour. Additional administrator accounts require a fresh code sent to that mailbox and must use `adminlandtrack@gmail.com` as their login email. Never put secrets in `.env.example`, the web environment, or source control.
-3. Start local dependencies with `docker compose -f infra/docker-compose.yml up -d`. The same Compose file can run with Podman Desktop; use its Compose provider or install `podman-compose`. For a WSL-backed Podman machine, the provider command may need `--in-pod=false --podman-run-args='--cgroups=disabled'`.
+3. Start local dependencies with `docker compose -f infra/docker-compose.yml up -d`.
 4. Create the database schema and initial administrator/settings/slots using `corepack pnpm --dir apps/api db:migrate`, then `corepack pnpm --dir apps/api db:seed`.
 5. Start the web and API apps with `corepack pnpm dev`.
 6. Visit `http://localhost:3000`. The API health endpoint is `http://localhost:4000/api/v1/health`; non-production OpenAPI docs are at `http://localhost:4000/api/docs`.
 
-The object-storage service in the local Compose stack is RustFS, an S3-compatible alternative to MinIO. With Podman on WSL, if Windows cannot reach published services at `localhost`, set the API service host values in `apps/api/.env` to the Podman machine's reachable IP (`podman machine ssh landtrack-machine-default 'ip -4 addr show eth0'`). Keep these local development credentials private and do not use them for a public deployment.
+## Run the full stack in Podman
+
+For a fully containerized local stack, including the web and API services, follow [the Podman deployment guide](./docs/deployment-podman.md). It adds dedicated Podman `Containerfile`s for [apps/api/Containerfile](./apps/api/Containerfile), [apps/web/Containerfile](./apps/web/Containerfile), a full-stack Compose file at [infra/podman-compose.yml](./infra/podman-compose.yml), and a container runtime environment template at [infra/podman.env.example](./infra/podman.env.example).
+The object-storage service in the local Compose stack is RustFS, an S3-compatible alternative to MinIO. Keep these local development credentials private and do not use them for a public deployment.
 
 The local seed includes Hyderabad, Ranga Reddy, Medchal-Malkajgiri, Sangareddy, Yadadri Bhuvanagiri, Medak, and Siddipet district masters. Hyderabad's 16 mandals and villages come from the [Hyderabad District Administration mandal directory](https://hyderabad.telangana.gov.in/tehsil/) (last updated 30 July 2024); the other six district hierarchies are a snapshot of the [Telangana Bhu Bharati land-record selector](https://bhubharati.telangana.gov.in/knowLandStatus), whose records were reported updated 17 October 2026. These are published administrative/land-record options, not a guarantee of cadastral boundaries; verify survey jurisdiction against current land records before entering real property records.
 
@@ -33,14 +36,14 @@ Appointment booking writes Google Calendar events to the calendar owned by the a
 
 For Gmail delivery, configure the API SMTP URL with a Gmail App Password and use `MAIL_FROM=adminlandtrack@gmail.com`, or configure another trusted SMTP relay. With Gmail SMTP, use an app password (not the account password) and keep it in the ignored `apps/api/.env`; the local default SMTP URL sends mail only to the development MailHog inbox.
 
-For a Netlify deployment of both the web app and stateless API function, including the required managed service configuration and function limitations, follow [the Netlify deployment guide](./docs/deployment-netlify.md). A persistent Railway API deployment remains documented in [the Railway deployment guide](./docs/deployment-railway.md).
+For a Netlify deployment of both the web app and stateless API function, including the required managed service configuration and function limitations, follow [the Netlify deployment guide](./docs/deployment-netlify.md). For a fully containerized Podman stack, follow [the Podman deployment guide](./docs/deployment-podman.md). A persistent Railway API deployment remains documented in [the Railway deployment guide](./docs/deployment-railway.md).
 
 This is an integration baseline, not a production-ready service. Run the complete journey against the local Compose dependencies before staging. Some portal areas (including chat/calls, notifications, auditor review, and several admin workspaces) still need full UI integration and end-to-end verification. For staging and production, use provider-managed secrets and configure real SMS/WhatsApp, hosted-checkout test/live credentials, object storage, email, Jitsi/TURN/recording, and monitoring; import authoritative Hyderabad location masters; add automated API/E2E and security tests; and complete legal, privacy, retention, operational, backup, and deployment reviews. Do not use fake adapters or real user documents/payment data until the relevant provider flows and controls have been verified.
 
 ## Monorepo layout
 
-- `apps/web` — Next.js App Router portal
-- `apps/api` — NestJS API
-- `packages/shared` — shared TypeScript contracts
-- `infra` — local service containers
-- `.github/workflows` — build CI
+- `apps/web` - Next.js App Router portal
+- `apps/api` - NestJS API
+- `packages/shared` - shared TypeScript contracts
+- `infra` - local service containers
+- `.github/workflows` - build CI

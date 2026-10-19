@@ -13,3 +13,5 @@ coverage
 *.tsbuildinfo
 packages/shared/src/index.js
 packages/shared/src/index.js.map
+
+infra/podman.env
