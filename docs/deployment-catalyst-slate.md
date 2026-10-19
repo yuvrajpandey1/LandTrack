@@ -11,8 +11,8 @@ In the Catalyst console, open **Slate > your app > Settings > Build & Deploy** a
 | Branch | `main` |
 | Root directory | `.` (repository root) |
 | Node version | `22` |
-| Install command | `corepack enable && corepack prepare pnpm@9.12.3 --activate && pnpm install --frozen-lockfile` |
-| Build command | `pnpm --dir apps/web build` |
+| Install command | `npx -y pnpm@9.12.3 install --frozen-lockfile --filter @landtrack/web... 1>&2` (the Slate image has no corepack; the filter skips the API's native `argon2` build) |
+| Build command | `npx -y pnpm@9.12.3 --dir apps/web build 1>&2` |
 | Output / start | the Next.js output from `apps/web` (`.next`; start with `pnpm --dir apps/web start`) |
 
 Environment variables:
