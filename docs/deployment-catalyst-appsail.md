@@ -1,5 +1,22 @@
 # Deploy the API on Zoho Catalyst AppSail
 
+## Demo: all-in-one AppSail (web + API in one container)
+
+[infra/zoho-appsail/](../infra/zoho-appsail) builds one image with the web app (public port), the API, embedded PostgreSQL, Redis and an in-memory S3 stand-in. It is a **demo**: all data is lost on restart, and uploads, email and virus scanning do not work. It is Zoho-only; no other deployment uses these files.
+
+```powershell
+podman build -f infra/zoho-appsail/Containerfile -t landtrack-zoho:demo .
+podman save --format oci-archive -o landtrack-zoho.tar localhost/landtrack-zoho:demo   # OCI format is required
+# from a folder created with: catalyst init --org <orgId> -p <projectId> -ni
+catalyst deploy appsail --name landtrack --source docker-archive://<abs path>/landtrack-zoho.tar --port 9000 -ni
+```
+
+AppSail facts learned: the public port must be bound within ~10s (the entrypoint starts Next.js first), the root filesystem is not writable (data lives in `/tmp`), and the container must not rely on root. Allow ~1-2 minutes after deploy for `/api/v1/health` to return `ok`. Logs: Console > DevOps > Logs (Application, resource `landtrack`), indexed after ~5 minutes.
+
+Seeded admin (override via AppSail env vars `ADMIN_EMAIL`, `ADMIN_INITIAL_PASSWORD`): `admin@landtrack.example` / `PodmanAdmin123!`.
+
+## Production: API only with managed services
+
 This guide is Zoho-only. It reuses the existing [apps/api/Containerfile](../apps/api/Containerfile) unchanged, so Netlify, Podman, Railway, and local flows are not affected.
 
 ## Prerequisites

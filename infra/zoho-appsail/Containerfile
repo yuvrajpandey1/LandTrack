@@ -1,0 +1,30 @@
+FROM node:22-bookworm-slim
+
+WORKDIR /workspace
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates openssl postgresql redis-server gosu \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable \
+    && corepack prepare pnpm@9.12.3 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps apps
+COPY packages packages
+
+ENV CONTAINER_BUILD=true
+
+RUN pnpm install --frozen-lockfile \
+    && DATABASE_URL=postgresql://u:p@127.0.0.1:5432/build pnpm --dir apps/api build \
+    && API_URL=http://127.0.0.1:4000 pnpm --dir apps/web build
+
+COPY infra/zoho-appsail infra/zoho-appsail
+COPY infra/zoho-appsail/entrypoint.sh /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
+
+USER node
+ENV NODE_ENV=production
+EXPOSE 9000
+
+CMD ["/entrypoint.sh"]
