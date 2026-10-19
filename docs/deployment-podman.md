@@ -56,6 +56,7 @@ The main endpoints are:
 - The API container runs in `development` mode so the local fake SMS, WhatsApp, and payment providers remain available. Seeding remains a separate one-off task so repeated restarts do not duplicate seed work.
 - The Podman stack uses RustFS for local S3-compatible storage and MailHog for local email capture.
 - If Podman on WSL reports pod cgroup errors while starting the stack, include `--in-pod=false --podman-run-args=--cgroups=disabled` in the compose command. If Windows cannot reach the published ports through `localhost`, inspect the Podman machine IP with `podman machine ssh <machine-name> ip -4 addr show` and use that reachable address from the browser.
+- To reach the stack on `localhost` without administrator rights, run `$env:PODMAN_HOST='<machine-ip>'; node infra/podman-localhost-proxy.mjs`. It forwards `localhost:3001` and `localhost:4001` to the Podman machine.
 - For cleanup, stop and remove the stack with `podman compose -f infra/podman-compose.yml down`. Add `-v` to remove the persistent PostgreSQL and RustFS volumes.
 
 
