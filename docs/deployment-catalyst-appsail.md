@@ -2,7 +2,7 @@
 
 ## Demo: all-in-one AppSail (web + API in one container)
 
-[infra/zoho-appsail/](../infra/zoho-appsail) builds one image with the web app (public port), the API, embedded PostgreSQL, Redis and an in-memory S3 stand-in. It is a **demo**: all data is lost on restart, and uploads, email and virus scanning do not work. It is Zoho-only; no other deployment uses these files.
+[infra/zoho-appsail/](../infra/zoho-appsail) builds one image with the web app (public port), the API, embedded PostgreSQL, Redis an in-memory S3 stand-in and ClamAV (`clamd` on 127.0.0.1:3310, signatures baked in at build time, about 1 GB RAM). It is a **demo**: all data is lost on restart, and email does not work and uploads are not persisted. It is Zoho-only; no other deployment uses these files.
 
 ```powershell
 podman build -f infra/zoho-appsail/Containerfile -t landtrack-zoho:demo .
