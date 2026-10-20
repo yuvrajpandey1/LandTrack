@@ -23,7 +23,7 @@ $AS_PG "$PGBIN/psql" -h 127.0.0.1 -U postgres -tc "SELECT 1 FROM pg_database WHE
   || $AS_PG "$PGBIN/createdb" -h 127.0.0.1 -U postgres landtrack
 redis-server --daemonize yes --save "" --bind 127.0.0.1 >/dev/null
 
-printf 'DatabaseDirectory /opt/clamdb\nTCPSocket 3310\nTCPAddr 127.0.0.1\nPidFile /tmp/clamd.pid\nTemporaryDirectory /tmp\nForeground yes\nMaxFileSize 100M\nStreamMaxLength 100M\n' > /tmp/clamd.conf
+printf 'DatabaseDirectory /opt/clamdb\nTCPSocket 3310\nTCPAddr 127.0.0.1\nPidFile /tmp/clamd.pid\nTemporaryDirectory /tmp\nForeground yes\nMaxFileSize 100M\nStreamMaxLength 100M\nSelfCheck 0\n' > /tmp/clamd.conf
 clamd --config-file=/tmp/clamd.conf &
 
 export NODE_ENV=development
@@ -51,7 +51,7 @@ cd /workspace
 node infra/zoho-appsail/s3-stub.mjs &
 (cd apps/api && node_modules/.bin/prisma migrate deploy)
 (cd apps/api && node_modules/.bin/tsx prisma/seed.ts) || true
-node apps/api/dist/main.js
+while true; do node apps/api/dist/main.js; echo "api exited, restarting"; sleep 2; done
 }
 
 backend 1>&2 &
