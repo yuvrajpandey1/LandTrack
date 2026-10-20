@@ -33,7 +33,8 @@ export APP_URL="${APP_URL:-http://localhost:${PORT_PUBLIC}}"
 export API_URL="http://127.0.0.1:4000"
 export PORT=4000
 export S3_ENDPOINT=http://127.0.0.1:9100 S3_REGION=ap-south-1 S3_BUCKET=landtrack S3_ACCESS_KEY=demo S3_SECRET_KEY=demo-secret
-export SMTP_URL=smtp://127.0.0.1:1025 MAIL_FROM=no-reply@landtrack.example
+export SMTP_URL="${SMTP_URL:-smtp://127.0.0.1:1025}"
+export MAIL_FROM="${MAIL_FROM:-no-reply@landtrack.example}"
 export CLAMAV_HOST=127.0.0.1 CLAMAV_PORT=3310
 export JWT_ACCESS_SECRET="${JWT_ACCESS_SECRET:-11111111111111111111111111111111}"
 export JWT_REFRESH_SECRET="${JWT_REFRESH_SECRET:-22222222222222222222222222222222}"
