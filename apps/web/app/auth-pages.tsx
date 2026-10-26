@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, LandPlot, ShieldCheck } from 'lucide-react';
-import { supportedCountries } from '@landtrack/shared';
+import { supportedCountries } from './countries';
 import { ApiError, useSession } from './session-provider';
 
 type District = { id: string; name: string };
