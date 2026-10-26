@@ -144,14 +144,13 @@ const navigationByRole: Record<Role, typeof adminNavigation> = {
   ],
   Agent: [
     { label: 'My overview', href: '/agent', icon: LayoutDashboard },
-    { label: 'Appointments', href: '/agent/appointments', icon: CalendarDays },
     { label: 'Chat', href: '/agent/chat', icon: MessageCircle },
     { label: 'Profile', href: '/agent/profile', icon: Users }
   ],
   NRI: [
     { label: 'My overview', href: '/app', icon: LayoutDashboard },
     { label: 'My properties', href: '/app/properties', icon: Building2 },
-    { label: 'Appointments', href: '/app/appointments', icon: CalendarDays },
+    { label: 'Appointments', href: '/app/appointments/new', icon: CalendarDays },
     { label: 'Messages', href: '/app/chat', icon: MessageCircle },
     { label: 'Payments', href: '/app/payments', icon: Wallet },
     { label: 'Settings', href: '/app/settings', icon: SlidersHorizontal }
@@ -166,7 +165,7 @@ const statusClasses: Record<PropertyStatus, string> = {
   Draft: 'status-gray'
 };
 
-function Header({ role, name, onSignOut }: { role: Role; name: string; onSignOut: () => void }) {
+function Header({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   return (
     <header className="topbar">
       <Link href="/" className="brand" aria-label="NRI Land Tracking System home">
@@ -180,7 +179,6 @@ function Header({ role, name, onSignOut }: { role: Role; name: string; onSignOut
           <input aria-label="Search" placeholder="Search properties, people..." />
           <kbd>⌘ K</kbd>
         </label>
-        <Link className="agent-register-link" href="/agent/register">Agent registration</Link>
         <Link className="agent-register-link" href="/account/password">Change password</Link>
         <button className="icon-button notification-button" aria-label="Notifications">
           <Bell size={19} /><span className="notification-dot" />
@@ -607,32 +605,6 @@ function RegistrationWizard({ onCreate, onPayment }: { onCreate: (property: Prop
   );
 }
 
-function AppointmentScreen() {
-  const [selectedDay, setSelectedDay] = useState(12);
-  const [selectedSlot, setSelectedSlot] = useState('10:30 AM');
-  const [mode, setMode] = useState('VIDEO');
-  const [booked, setBooked] = useState(false);
-  const slots = ['09:00 AM', '10:30 AM', '01:00 PM', '03:00 PM', '04:30 PM'];
-  return (
-    <div className="appointment-grid">
-      <section className="card appointment-card">
-        <div><h2>Choose a date and time</h2><p>Times are shown in your local time and India Standard Time (IST).</p></div>
-        <div className="calendar">
-          <div className="calendar-header"><button aria-label="Previous month"><ChevronLeft size={17} /></button><strong>October 2026</strong><button aria-label="Next month"><ChevronRight size={17} /></button></div>
-          <div className="calendar-days">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <span key={day}>{day}</span>)}</div>
-          <div className="calendar-dates">{[28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1].map((day, index) => <button key={`${day}-${index}`} className={`${index < 3 || index > 33 ? 'other-month' : ''} ${day === selectedDay && index >= 3 && index < 34 ? 'selected' : ''} ${index % 7 === 6 || index < 3 ? 'disabled-day' : ''}`} disabled={index % 7 === 6 || index < 3} onClick={() => setSelectedDay(day)}>{day}</button>)}</div>
-        </div>
-        <div className="slot-heading"><div><h3>Available time slots</h3><p>Wednesday, October {selectedDay}</p></div><span className="timezone-label"><Clock3 size={14} /> IST (UTC+5:30)</span></div>
-        <div className="slot-list">{slots.map((slot) => <button key={slot} className={`slot-button ${selectedSlot === slot ? 'selected' : ''}`} onClick={() => setSelectedSlot(slot)}>{slot}<small>{slot.replace(' AM', '').replace(' PM', '')} IST</small></button>)}</div>
-        <label className="form-field mode-field"><span>Appointment mode</span><select value={mode} onChange={(event) => setMode(event.target.value)}><option value="VIDEO">Video call</option><option value="AUDIO">Audio call</option><option value="SITE_VISIT">Site visit</option></select></label>
-        {booked && <div className="success-inline"><Check size={17} />Appointment request sent. The admin team will assign an agent.</div>}
-        <button className="button button-primary button-wide" onClick={() => setBooked(true)}><CalendarDays size={17} />Confirm booking</button>
-      </section>
-      <aside className="card booking-summary"><div className="summary-icon"><CalendarDays size={20} /></div><h3>Your appointment</h3><div className="summary-item"><span>Property</span><strong>Green Valley Plot</strong></div><div className="summary-item"><span>Date</span><strong>Oct {selectedDay}, 2026</strong></div><div className="summary-item"><span>Time</span><strong>{selectedSlot} IST</strong></div><div className="summary-item"><span>Mode</span><strong>{mode.replace('_', ' ')}</strong></div><div className="summary-note">Your booking is confirmed after the property review is approved.</div></aside>
-    </div>
-  );
-}
-
 function AuditDetail({ property }: { property: Property | undefined }) {
   const [tab, setTab] = useState('Details');
   const tabs = ['Details', 'Documents', 'Payment', 'Appointments', 'Communication', 'Timeline'];
@@ -659,7 +631,9 @@ function SectionPage({ pathname, properties, agents, activeAgents, onReviewPrope
   if (pathname === '/admin') return <AdminDashboard properties={properties} activeAgents={activeAgents} onReview={onReviewProperty} />;
   if (pathname === '/admin/agents') return <AgentDirectory agents={agents} onReview={onReviewAgent} />;
   if (pathname === '/admin/agents/new') return <><PageHeading eyebrow="AGENT MANAGEMENT" title="Invite an agent" description="Agent profiles are created by verified applicants and become assignable after admin approval." /><div className="card empty-state"><Users size={28} /><h2>Share the agent application</h2><p>Ask the agent to create an account, verify their mobile number, and submit their service areas. Their verified application will appear here for approval.</p><Link href="/agent/register" className="button button-primary">Open agent registration<ArrowRight size={16} /></Link></div></>;
+  if (pathname === '/admin/appointments') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select an approved property and an available time for an appointment." /><AppointmentBooking /></>;
   if (pathname === '/app/properties/new') return <><PageHeading eyebrow="MY PROPERTIES" title="Register a property" description="Add your land or property in a supported Telangana district in a few guided steps." /><PropertyRegistration /></>;
+  if (pathname === '/app/appointments') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select a convenient date and time to speak with your Hyderabad agent." /><AppointmentBooking /></>;
   if (pathname === '/app/appointments/new') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select a convenient date and time to speak with your Hyderabad agent." /><AppointmentBooking /></>;
   if (pathname === '/app/payments') return <><PageHeading eyebrow="PAYMENT HISTORY" title="Payments" description="Track registration charges and provider-confirmed receipts." /><PaymentHistory /></>;
   if (pathname.startsWith('/audit/properties/')) {
@@ -696,7 +670,7 @@ function SectionPage({ pathname, properties, agents, activeAgents, onReviewPrope
   return (
     <>
       <PageHeading eyebrow={hasReadOnly ? 'READ-ONLY AUDIT' : roleAdmin ? 'ADMINISTRATION' : 'MY PROPERTIES'} title={formattedTitle} description={hasReadOnly ? 'Read-only access to NRI Land Tracking System records and communication activity.' : 'Manage NRI Land Tracking System activity for the Hyderabad region.'} />
-      {pathname.includes('appointment') ? <AppointmentScreen /> : pathname.includes('properties') ? <PropertyTable properties={properties} audit={hasReadOnly} /> : (
+      {pathname.includes('properties') ? <PropertyTable properties={properties} audit={hasReadOnly} /> : (
         <section className="card module-card">
           <div className="module-icon"><ClipboardCheck size={23} /></div>
           <h2>{formattedTitle}</h2>
@@ -722,10 +696,11 @@ export default function NriLandTrackingSystemPage() {
   const passwordRoute = currentPath === '/account/password';
   const role = user ? roleByAccount[user.role] : null;
   const routeRole = role ?? 'NRI';
+  const agentAppointmentRoute = user?.role === 'AGENT' && currentPath.startsWith('/agent/appointments');
   const permitted = Boolean(user && role && (
     (currentPath.startsWith('/admin') && user.role === 'ADMIN')
     || (currentPath.startsWith('/audit') && (user.role === 'ADMIN' || user.role === 'AUDITOR'))
-    || (currentPath.startsWith('/agent') && user.role === 'AGENT')
+    || (currentPath.startsWith('/agent') && user.role === 'AGENT' && !agentAppointmentRoute)
     || (currentPath.startsWith('/app') && user.role === 'NRI')
     || passwordRoute
   ));
@@ -788,7 +763,11 @@ export default function NriLandTrackingSystemPage() {
     if (sessionLoading) return;
     if (!user && currentPath === '/login') return;
     if (!user && currentPath === '/register') return;
-    if (currentPath === '/agent/register') return;
+    if (currentPath === '/agent/register') {
+      if (!user || user.role === 'ADMIN') return;
+      router.replace(homeByRole[roleByAccount[user.role]]);
+      return;
+    }
     if (!user && currentPath === '/admin/register') return;
     if (!user) {
       router.replace('/login');
@@ -804,7 +783,7 @@ export default function NriLandTrackingSystemPage() {
   if (sessionLoading) return <div className="app-loading" aria-label="Loading NRI Land Tracking System" />;
   if (currentPath === '/login') return <LoginPage />;
   if (currentPath === '/register') return <NriRegistrationPage />;
-  if (currentPath === '/agent/register') return <AgentRegistrationPage />;
+  if (currentPath === '/agent/register' && (!user || user.role === 'ADMIN')) return <AgentRegistrationPage />;
   if (currentPath === '/admin/register' && !user) return <AdminRegistrationPage />;
   if (!user || !role || !permitted || currentPath === '/' || (recordsLoading && !passwordRoute)) return <div className="app-loading" aria-label="Loading NRI Land Tracking System" />;
 
@@ -817,7 +796,7 @@ export default function NriLandTrackingSystemPage() {
 
   return (
     <main className="app-shell">
-      <Header role={role} name={user.name} onSignOut={handleSignOut} />
+      <Header name={user.name} onSignOut={handleSignOut} />
       <div className="app-body">
         <Sidebar role={routeRole} pathname={currentPath} />
         <div className="main-column">
