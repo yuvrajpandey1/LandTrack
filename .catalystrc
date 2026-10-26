@@ -1,0 +1,30 @@
+{
+  "defaults": {
+    "project": 1,
+    "env": 1
+  },
+  "actives": {
+    "project": 1,
+    "env": 1
+  },
+  "projects": [
+    {
+      "idx": 1,
+      "id": "93709000000013057",
+      "name": "LandTrack",
+      "domain": {
+        "id": "50046989602",
+        "name": "landtrack-60092436975.development"
+      },
+      "timezone": "Asia/Kolkata",
+      "env": [
+        {
+          "idx": 1,
+          "id": "60092436975",
+          "name": "Development",
+          "type": 3
+        }
+      ]
+    }
+  ]
+}
