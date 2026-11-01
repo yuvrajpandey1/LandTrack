@@ -387,6 +387,11 @@ td { padding: 11px 13px; border-top: 1px solid #eef0f4; color: #697386; font-siz
 .nri-form .terms-check { font-size: 10.5px; line-height: 1.5; }
 .nri-form .terms-check strong { color: #286045; }
 .nri-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.nri-badge { width: fit-content; padding: 3px 9px; color: #286045; background: #e8f6e9; border-radius: 999px; font-size: 9px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.nri-quote { margin: 0 0 18px; padding: 12px 14px; color: rgba(255,255,255,.9); background: rgba(255,255,255,.1); border-left: 3px solid #8fd6a2; border-radius: 4px; font-size: 11px; line-height: 1.55; }
+.nri-quote cite { display: block; margin-top: 6px; color: rgba(255,255,255,.65); font-size: 10px; font-style: normal; }
+.nri-hint { margin: 0; color: #6c7a72; font-size: 10.5px; }
+.nri-location .district-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }
 @media (max-width: 860px) {
   .nri-split { grid-template-columns: 1fr; }
   .nri-hero { padding: 20px; gap: 18px; }

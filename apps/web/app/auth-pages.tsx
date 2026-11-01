@@ -274,9 +274,12 @@ export function AgentRegistrationPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
+  const [agency, setAgency] = useState('');
+  const [licenseId, setLicenseId] = useState('');
+  const [dialCode, setDialCode] = useState('+91');
   const [password, setPassword] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
-  const [languages, setLanguages] = useState('');
+  const [languages, setLanguages] = useState('English');
   const [areasCovered, setAreasCovered] = useState<string[]>([]);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
@@ -304,7 +307,7 @@ export function AgentRegistrationPage() {
       await request('auth/register/agent', {
         method: 'POST',
         body: JSON.stringify({
-          name, email, mobile, password, experienceYears: Number(experienceYears),
+          name, email, mobile: `${dialCode}${mobile.replace(/\D/g, '')}`, password, experienceYears: Number(experienceYears),
           languages: [...new Set(languages.split(',').map((item) => item.trim()).filter(Boolean))],
           areasCovered,
           consents: { terms: true, privacy: true }
@@ -320,28 +323,57 @@ export function AgentRegistrationPage() {
   };
 
   return (
-    <AuthFrame title="Agent registration" description="Apply to support property owners across the Hyderabad service region. Your profile remains pending admin approval after signup.">
-        <form className="auth-form" onSubmit={submitRegistration}>
+    <main className="nri-split">
+      <aside className="nri-hero" aria-label="Why join LandTracker">
+        <Link href="/" className="nri-hero-brand" aria-label="LandTracker home"><LandPlot size={16} strokeWidth={2.4} /><span>LandTracker</span></Link>
+        <div className="nri-hero-copy">
+          <h2>Empowering<br />Local Experts.</h2>
+          <blockquote className="nri-quote">&ldquo;Being a verified agent on LandTracker has helped me work with clients across different countries.&rdquo;<cite>Verified Hyderabad agent</cite></blockquote>
+          <ul>
+            <li><BadgeCheck size={14} /><div><strong>Access High-value Clients</strong></div></li>
+            <li><ShieldCheck size={14} /><div><strong>Streamlined Document Verification</strong></div></li>
+            <li><LayoutDashboard size={14} /><div><strong>Smarter Business Tracking</strong></div></li>
+          </ul>
+        </div>
+        <p className="nri-hero-foot">NRI Land Tracking System · Hyderabad, Telangana</p>
+      </aside>
+      <section className="nri-form-pane">
+        <form className="nri-form" onSubmit={submitRegistration}>
+          <span className="nri-badge">Become a local agent</span>
+          <h1>Apply as a Local Agent</h1>
+          <p className="nri-sub">Your profile remains pending admin approval after you submit your application.</p>
           {user && <p className="success-panel" role="note">You are signed in as {user.email}. Agent registration creates a separate account, so use a different email address and mobile number. You will be signed out after submitting.</p>}
-          <label className="form-field"><span>Full name</span><input autoComplete="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label>
-          <label className="form-field"><span>Email address</span><input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label className="form-field"><span>Mobile number (include country code)</span><input type="tel" autoComplete="tel" required pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={mobile} onChange={(event) => setMobile(event.target.value)} /></label>
-          <label className="form-field"><span>Password</span><input type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          <label className="form-field"><span>Years of local property experience</span><input type="number" min="0" max="60" required value={experienceYears} onChange={(event) => setExperienceYears(event.target.value)} /></label>
-          <label className="form-field"><span>Languages</span><input required value={languages} onChange={(event) => setLanguages(event.target.value)} placeholder="English, Telugu, Hindi" /><small className="form-help">Separate each language with a comma.</small></label>
-          <fieldset className="form-field district-fieldset">
-            <legend>Service districts</legend>
+          <div className="nri-grid">
+            <label className="form-field"><span>Full Professional Name</span><input autoComplete="name" required maxLength={120} placeholder="Experts' name" value={name} onChange={(event) => setName(event.target.value)} /></label>
+            <label className="form-field"><span>Agency Name <em>Optional</em></span><input maxLength={120} placeholder="Name of your agency" value={agency} onChange={(event) => setAgency(event.target.value)} /></label>
+            <label className="form-field"><span>License Number / RERA ID <em>Optional</em></span><input maxLength={60} placeholder="Registered RERA ID" value={licenseId} onChange={(event) => setLicenseId(event.target.value)} /></label>
+            <label className="form-field"><span>Years of Experience</span><select required value={experienceYears} onChange={(event) => setExperienceYears(event.target.value)}><option value="">Select experience</option><option value="1">0-2 years</option><option value="3">3-5 years</option><option value="6">6-10 years</option><option value="11">11-15 years</option><option value="16">16+ years</option></select></label>
+            <label className="form-field"><span>Work Email Address</span><input type="email" autoComplete="email" required maxLength={254} placeholder="name@example.com" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+            <div className="form-field"><span>Contact Number</span>
+              <div className="nri-phone">
+                <select aria-label="Country dial code" value={dialCode} onChange={(event) => setDialCode(event.target.value)}>{dialCodes.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select>
+                <input type="tel" autoComplete="tel-national" required inputMode="numeric" pattern="[0-9 ]{7,14}" aria-label="Phone number" placeholder="Phone number" value={mobile} onChange={(event) => setMobile(event.target.value)} />
+              </div>
+            </div>
+          </div>
+          <fieldset className="nri-location">
+            <legend><MapPin size={12} /> Service Coverage</legend>
+            <p className="nri-hint">Select the districts where you operate.</p>
             <div className="district-options">{districts.map((district) => <label key={district.id} className="district-option"><input type="checkbox" checked={areasCovered.includes(district.id)} onChange={() => toggleArea(district.id)} /><span>{district.name}</span></label>)}</div>
           </fieldset>
-          <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the NRI Land Tracking System terms and privacy notice.</span></label>
+          <label className="form-field"><span>Languages</span><input required value={languages} onChange={(event) => setLanguages(event.target.value)} placeholder="English, Telugu, Hindi" /><small>Separate each language with a comma.</small></label>
+          <label className="form-field"><span>Create Agent Account Password</span><input type="password" autoComplete="new-password" minLength={10} required placeholder="Minimum 10 characters" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I certify that professional details are correct. I agree to the <strong>Agent Partnership Agreement</strong> and the NRI Land Tracking System privacy notice.</span></label>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button button-primary auth-submit" disabled={busy || districts.length === 0}>{busy ? 'Submitting application…' : 'Submit agent application'}<ArrowRight size={16} /></button>
-          <p className="auth-switch">Already registered? <Link href="/login">Sign in</Link></p>
+          <div className="nri-actions">
+            <button className="button button-primary" disabled={busy || districts.length === 0 || areasCovered.length === 0}>{busy ? 'Submitting application…' : 'Submit Application'}</button>
+            <p className="auth-switch">Existing agent? <Link href="/login">Sign in</Link></p>
+          </div>
         </form>
-    </AuthFrame>
+      </section>
+    </main>
   );
 }
-
 export function AdminRegistrationPage() {
   const router = useRouter();
   const { request } = useSession();
