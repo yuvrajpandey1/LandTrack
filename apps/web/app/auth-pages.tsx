@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowRight, LandPlot, ShieldCheck } from 'lucide-react';
+import { ArrowRight, BadgeCheck, LandPlot, LayoutDashboard, MapPin, Scale, ShieldCheck } from 'lucide-react';
 import { supportedCountries } from './countries';
 import { ApiError, useSession } from './session-provider';
 
@@ -171,17 +171,28 @@ export function LoginPage() {
   );
 }
 
+const dialCodes = [
+  { code: '+91', label: 'IN (+91)' }, { code: '+1', label: 'US/CA (+1)' }, { code: '+44', label: 'UK (+44)' },
+  { code: '+971', label: 'AE (+971)' }, { code: '+966', label: 'SA (+966)' }, { code: '+974', label: 'QA (+974)' },
+  { code: '+965', label: 'KW (+965)' }, { code: '+968', label: 'OM (+968)' }, { code: '+973', label: 'BH (+973)' },
+  { code: '+65', label: 'SG (+65)' }, { code: '+60', label: 'MY (+60)' }, { code: '+61', label: 'AU (+61)' },
+  { code: '+64', label: 'NZ (+64)' }, { code: '+49', label: 'DE (+49)' }, { code: '+33', label: 'FR (+33)' },
+  { code: '+81', label: 'JP (+81)' }
+];
+
+const indianStates = ['Telangana', 'Andhra Pradesh', 'Karnataka', 'Maharashtra', 'Tamil Nadu', 'Kerala', 'Delhi', 'Gujarat', 'Other'];
+
 export function NriRegistrationPage() {
   const router = useRouter();
   const { request } = useSession();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [mobile, setMobile] = useState('');
+  const [dialCode, setDialCode] = useState('+91');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [originCountry, setOriginCountry] = useState('');
   const [currentCountry, setCurrentCountry] = useState('');
-  const [whatsappNumber, setWhatsappNumber] = useState('');
-  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
+  const [propertyState, setPropertyState] = useState('');
+  const [propertyCity, setPropertyCity] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -194,9 +205,8 @@ export function NriRegistrationPage() {
       await request('auth/register/nri', {
         method: 'POST',
         body: JSON.stringify({
-          name, email, mobile, password, originCountry, currentCountry,
-          timeZone: 'Asia/Kolkata', whatsappOptIn,
-          ...(whatsappNumber ? { whatsappNumber } : {}),
+          name, email, mobile: `${dialCode}${phone.replace(/\D/g, '')}`, password, originCountry: 'IN', currentCountry,
+          timeZone: 'Asia/Kolkata', whatsappOptIn: false,
           consents: { terms: true, privacy: true }
         })
       });
@@ -209,22 +219,51 @@ export function NriRegistrationPage() {
   };
 
   return (
-    <AuthFrame title="Create your NRI account" description="Create an account to register and manage your Hyderabad property. Sign in with your password after signup.">
-        <form className="auth-form" onSubmit={submitRegistration}>
-          <label className="form-field"><span>Full name</span><input autoComplete="name" required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label>
-          <label className="form-field"><span>Email address</span><input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label className="form-field"><span>Mobile number (include country code)</span><input type="tel" autoComplete="tel" required pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={mobile} onChange={(event) => setMobile(event.target.value)} /></label>
-          <label className="form-field"><span>Password</span><input type="password" autoComplete="new-password" minLength={10} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          <label className="form-field"><span>Country of origin</span><select required value={originCountry} onChange={(event) => setOriginCountry(event.target.value)}><option value="">Select a country</option>{supportedCountries.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
-          <label className="form-field"><span>Current country</span><select required value={currentCountry} onChange={(event) => setCurrentCountry(event.target.value)}><option value="">Select a country</option>{supportedCountries.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
-          <label className="form-field"><span>WhatsApp number <em>Optional</em></span><input type="tel" pattern="\+[1-9][0-9]{7,14}" placeholder="+919876543210" value={whatsappNumber} onChange={(event) => setWhatsappNumber(event.target.value)} /></label>
-          <label className="terms-check"><input type="checkbox" checked={whatsappOptIn} onChange={(event) => setWhatsappOptIn(event.target.checked)} /><span>I agree to receive WhatsApp updates on this number.</span></label>
-          <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the NRI Land Tracking System terms and privacy notice.</span></label>
+    <main className="nri-split">
+      <aside className="nri-hero" aria-label="LandTracker benefits">
+        <Link href="/" className="nri-hero-brand" aria-label="LandTracker home"><LandPlot size={16} strokeWidth={2.4} /><span>LandTracker</span></Link>
+        <div className="nri-hero-copy">
+          <h2>Start Your<br />Protection Journey.</h2>
+          <ul>
+            <li><BadgeCheck size={14} /><div><strong>Verified Land Agents</strong><span>Connect with trusted professionals for your property matters.</span></div></li>
+            <li><Scale size={14} /><div><strong>Legal Safeguards</strong><span>Expert guidance and documentation support for your property.</span></div></li>
+            <li><LayoutDashboard size={14} /><div><strong>Real-time Dashboard</strong><span>Track your land status and appointments from anywhere.</span></div></li>
+          </ul>
+        </div>
+        <p className="nri-hero-foot">NRI Land Tracking System · Hyderabad, Telangana</p>
+      </aside>
+      <section className="nri-form-pane">
+        <form className="nri-form" onSubmit={submitRegistration}>
+          <h1>Register as NRI Property Owner</h1>
+          <p className="nri-sub">Already a community member? Complete the form to begin.</p>
+          <div className="nri-grid">
+          <label className="form-field"><span>Full Name (as per passport)</span><input autoComplete="name" required maxLength={120} placeholder="As on your passport" value={name} onChange={(event) => setName(event.target.value)} /></label>
+          <label className="form-field"><span>Email Address</span><input type="email" autoComplete="email" required maxLength={254} placeholder="name@example.com" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <div className="form-field"><span>International Phone Number</span>
+            <div className="nri-phone">
+              <select aria-label="Country dial code" value={dialCode} onChange={(event) => setDialCode(event.target.value)}>{dialCodes.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select>
+              <input type="tel" autoComplete="tel-national" required inputMode="numeric" pattern="[0-9 ]{7,14}" aria-label="Phone number" placeholder="Phone number" value={phone} onChange={(event) => setPhone(event.target.value)} />
+            </div>
+          </div>
+          <label className="form-field"><span>Country of Residence</span><select required value={currentCountry} onChange={(event) => setCurrentCountry(event.target.value)}><option value="">Select a country</option>{supportedCountries.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}</select></label>
+          </div>
+          <fieldset className="nri-location">
+            <legend><MapPin size={12} /> Primary Property Location</legend>
+            <div className="nri-grid">
+              <label className="form-field"><span>State in India</span><select value={propertyState} onChange={(event) => setPropertyState(event.target.value)}><option value="">Select State</option>{indianStates.map((state) => <option key={state} value={state}>{state}</option>)}</select></label>
+              <label className="form-field"><span>District / City</span><input placeholder="e.g. Hyderabad" value={propertyCity} onChange={(event) => setPropertyCity(event.target.value)} /></label>
+            </div>
+          </fieldset>
+          <label className="form-field"><span>Create Password</span><input type="password" autoComplete="new-password" minLength={10} required placeholder="Minimum 10 characters" value={password} onChange={(event) => setPassword(event.target.value)} /><small>Use at least 10 characters with a mix of letters, numbers and symbols.</small></label>
+          <label className="terms-check"><input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} /><span>I agree to the NRI Land Tracking System <strong>Terms of Service</strong> and confirm that I am an NRI. I consent to the processing of my data and privacy notice.</span></label>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button button-primary auth-submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}<ArrowRight size={16} /></button>
-          <p className="auth-switch">Already registered? <Link href="/login">Sign in</Link></p>
+          <div className="nri-actions">
+            <button className="button button-primary" disabled={busy}>{busy ? 'Creating account…' : 'Complete Registration'}</button>
+            <p className="auth-switch">Already registered? <Link href="/login">Sign in</Link></p>
+          </div>
         </form>
-    </AuthFrame>
+      </section>
+    </main>
   );
 }
 
