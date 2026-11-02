@@ -34,7 +34,12 @@ interface CalendarBooking {
 export class GoogleCalendarService {
   private readonly apiBase = 'https://www.googleapis.com/calendar/v3';
 
+  private get demoMode(): boolean {
+    return process.env.GOOGLE_CALENDAR_PROVIDER === 'fake' && process.env.NODE_ENV !== 'production';
+  }
+
   isConfigured(): boolean {
+    if (this.demoMode) return true;
     return Boolean(
       process.env.GOOGLE_CALENDAR_CLIENT_ID &&
       process.env.GOOGLE_CALENDAR_CLIENT_SECRET &&
@@ -43,6 +48,11 @@ export class GoogleCalendarService {
   }
 
   async createAppointment(booking: CalendarBooking): Promise<{ eventId: string; meetUrl: string | null }> {
+    if (this.demoMode) {
+      // Demo only: no Google event is created and no invitation is sent.
+      const code = randomUUID().replaceAll('-', '').slice(0, 10);
+      return { eventId: `demo-${randomUUID()}`, meetUrl: booking.mode === AppointmentMode.VIDEO ? `https://meet.google.com/demo-${code.slice(0, 3)}-${code.slice(3, 7)}-${code.slice(7)}` : null };
+    }
     const token = await this.accessToken();
     const calendarId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID || 'primary');
     const conferenceData = booking.mode === AppointmentMode.VIDEO
@@ -75,6 +85,7 @@ export class GoogleCalendarService {
   }
 
   async deleteEvent(eventId: string): Promise<void> {
+    if (this.demoMode) return;
     const token = await this.accessToken();
     const calendarId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID || 'primary');
     const response = await fetch(`${this.apiBase}/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?sendUpdates=all`, {

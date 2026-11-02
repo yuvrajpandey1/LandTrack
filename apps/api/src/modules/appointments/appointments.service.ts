@@ -105,7 +105,7 @@ export class AppointmentsService {
     if (exception) throw new BadRequestException({ code: 'SLOT_UNAVAILABLE', message: 'Appointments are not available on this date.' });
     const end = new Date(start.getTime() + exact.durationMin * 60_000);
     const appointment = await this.prisma.$transaction(async (transaction) => {
-      await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${start.toISOString()}))`;
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${start.toISOString()}))`;
       const count = await transaction.appointment.count({ where: { startUtc: start, status: { in: OPEN_STATUSES } } });
       if (count >= exact.capacity) throw new BadRequestException({ code: 'SLOT_FULL', message: 'This appointment slot was just taken. Select another time.' });
       const created = await transaction.appointment.create({
@@ -246,7 +246,7 @@ export class AppointmentsService {
     if (!agent) throw new BadRequestException({ code: 'AGENT_NOT_AVAILABLE', message: 'The selected agent is not approved and active.' });
     const result = await this.prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`SELECT "id" FROM "Appointment" WHERE "id" = ${id} FOR UPDATE`;
-      await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${agentId}))`;
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${agentId}))`;
       const current = await transaction.appointment.findUnique({ where: { id } });
       if (!current) throw new NotFoundException({ code: 'APPOINTMENT_NOT_FOUND', message: 'Appointment was not found.' });
       if (current.status !== AppointmentStatus.REQUESTED && current.status !== AppointmentStatus.AGENT_ASSIGNED) {
