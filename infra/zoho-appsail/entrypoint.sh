@@ -33,6 +33,10 @@ export APP_URL="${APP_URL:-http://localhost:${PORT_PUBLIC}}"
 export API_URL="http://127.0.0.1:4000"
 export PORT=4000
 export S3_ENDPOINT=http://127.0.0.1:9100 S3_REGION=ap-south-1 S3_BUCKET=landtrack S3_ACCESS_KEY=demo S3_SECRET_KEY=demo-secret
+if [ -z "$SMTP_URL" ]; then
+  # No real email service configured: capture outgoing mail (e.g. admin setup codes) in the container log.
+  node infra/zoho-appsail/smtp-sink.mjs &
+fi
 export SMTP_URL="${SMTP_URL:-smtp://127.0.0.1:1025}"
 export MAIL_FROM="${MAIL_FROM:-no-reply@landtrack.example}"
 export CLAMAV_HOST=127.0.0.1 CLAMAV_PORT=3310
