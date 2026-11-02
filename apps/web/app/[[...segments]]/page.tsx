@@ -11,6 +11,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { AdminRegistrationPage, AgentRegistrationPage, LoginPage, NriRegistrationPage, PasswordChangePage } from '../auth-pages';
 import { AppointmentBooking } from '../appointment-booking';
+import { LandingPage } from '../landing';
 import { PaymentHistory } from '../payment-history';
 import { PropertyRegistration } from '../property-registration';
 import { useSession, type AccountRole } from '../session-provider';
@@ -761,7 +762,7 @@ export default function NriLandTrackingSystemPage() {
 
   useEffect(() => {
     if (sessionLoading) return;
-    if (!user && currentPath === '/login') return;
+    if (!user && (currentPath === '/' || currentPath === '/login')) return;
     if (!user && currentPath === '/register') return;
     if (currentPath === '/agent/register') {
       if (!user || user.role === 'ADMIN') return;
@@ -781,6 +782,7 @@ export default function NriLandTrackingSystemPage() {
   }, [currentPath, permitted, publicRoute, router, sessionLoading, user]);
 
   if (sessionLoading) return <div className="app-loading" aria-label="Loading NRI Land Tracking System" />;
+  if (currentPath === '/' && !user) return <LandingPage signedIn={false} portalHref="/login" />;
   if (currentPath === '/login') return <LoginPage />;
   if (currentPath === '/register') return <NriRegistrationPage />;
   if (currentPath === '/agent/register' && (!user || user.role === 'ADMIN')) return <AgentRegistrationPage />;
