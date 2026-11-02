@@ -548,3 +548,41 @@ h1, h2, .page-heading h1, .brand { font-family: Fraunces, Georgia, serif; letter
 .journey li span { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cfd8d0; display: grid; place-items: center; color: #fff; }
 .journey li.done { color: var(--ink); }
 .journey li.done span { background: var(--forest); border-color: var(--forest); }
+
+/* Chat and appointments */
+.chat-shell { display: grid; grid-template-columns: 300px 1fr; min-height: 520px; padding: 0; overflow: hidden; }
+.chat-list { border-right: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 640px; }
+.chat-list h2 { margin: 0 0 6px; font-size: 16px; }
+.chat-list-item { position: relative; text-align: left; display: grid; gap: 3px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: inherit; cursor: pointer; }
+.chat-list-item.selected { border-color: var(--forest); background: #eef4ee; }
+.chat-list-item small, .chat-list-item span { color: #6a7a70; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-unread { position: absolute; top: 10px; right: 10px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--terracotta, #c2643a); color: #fff; font-size: 11px; font-style: normal; font-weight: 700; display: grid; place-items: center; padding: 0 5px; }
+.chat-thread { display: flex; flex-direction: column; min-height: 520px; max-height: 640px; }
+.chat-thread-head { padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.chat-thread-head h2 { margin: 0; font-size: 16px; }
+.chat-thread-head p { margin: 3px 0 0; color: #6a7a70; font-size: 12px; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; background: #faf7f0; }
+.chat-bubble { max-width: 72%; padding: 9px 12px; border-radius: 12px; display: grid; gap: 4px; font-size: 14px; background: #fff; border: 1px solid var(--line); }
+.chat-bubble p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.chat-bubble small { color: #8a978f; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+.chat-bubble.mine { align-self: flex-end; background: var(--forest); border-color: var(--forest); color: #fff; }
+.chat-bubble.mine small, .chat-bubble.mine .text-action { color: #d9e8dc; }
+.chat-bubble.theirs { align-self: flex-start; }
+.chat-report { border: 0; background: transparent; color: #9a6a55; cursor: pointer; padding: 0; display: inline-flex; }
+.chat-compose { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); align-items: center; }
+.chat-compose input[type='text'], .chat-compose > input:not([type]) { flex: 1; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; }
+.chat-attach { display: inline-grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; color: #4a5f55; }
+.chat-attach input { display: none; }
+.form-success { color: #2c6b45; font-size: 13px; margin: 8px 18px; }
+.appointment-list { display: grid; gap: 12px; padding: 4px 18px 18px; }
+.appointment-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: #fff; display: grid; gap: 12px; }
+.appointment-main { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.appointment-main h3 { margin: 0 0 4px; font-size: 16px; }
+.appointment-main p { margin: 2px 0; color: #5d6d63; font-size: 13px; }
+.appointment-people { display: flex; flex-wrap: wrap; gap: 14px; }
+.appointment-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.appointment-actions select { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: #fff; }
+.reschedule-panel { border-top: 1px dashed var(--line); padding-top: 12px; display: grid; gap: 10px; }
+.reschedule-panel label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; max-width: 220px; }
+.reschedule-panel input { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; }
+@media (max-width: 800px) { .chat-shell { grid-template-columns: 1fr; } .chat-list { max-height: 220px; border-right: 0; border-bottom: 1px solid var(--line); } }

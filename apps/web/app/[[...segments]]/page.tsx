@@ -11,6 +11,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { AdminRegistrationPage, AgentRegistrationPage, LoginPage, NriRegistrationPage, PasswordChangePage } from '../auth-pages';
 import { AppointmentBooking } from '../appointment-booking';
+import { AppointmentsList } from '../appointments-list';
+import { ChatPanel } from '../chat-panel';
 import { LandingPage } from '../landing';
 import { PaymentHistory } from '../payment-history';
 import { PropertyRegistration } from '../property-registration';
@@ -145,13 +147,14 @@ const navigationByRole: Record<Role, typeof adminNavigation> = {
   ],
   Agent: [
     { label: 'My overview', href: '/agent', icon: LayoutDashboard },
+    { label: 'Appointments', href: '/agent/appointments', icon: CalendarDays },
     { label: 'Chat', href: '/agent/chat', icon: MessageCircle },
     { label: 'Profile', href: '/agent/profile', icon: Users }
   ],
   NRI: [
     { label: 'My overview', href: '/app', icon: LayoutDashboard },
     { label: 'My properties', href: '/app/properties', icon: Building2 },
-    { label: 'Appointments', href: '/app/appointments/new', icon: CalendarDays },
+    { label: 'Appointments', href: '/app/appointments', icon: CalendarDays },
     { label: 'Messages', href: '/app/chat', icon: MessageCircle },
     { label: 'Payments', href: '/app/payments', icon: Wallet },
     { label: 'Settings', href: '/app/settings', icon: SlidersHorizontal }
@@ -715,9 +718,12 @@ function SectionPage({ pathname, properties, agents, activeAgents, userName, onR
   if (pathname === '/admin') return <AdminDashboard properties={properties} activeAgents={activeAgents} onReview={onReviewProperty} />;
   if (pathname === '/admin/agents') return <AgentDirectory agents={agents} onReview={onReviewAgent} />;
   if (pathname === '/admin/agents/new') return <><PageHeading eyebrow="AGENT MANAGEMENT" title="Invite an agent" description="Agent profiles are created by verified applicants and become assignable after admin approval." /><div className="card empty-state"><Users size={28} /><h2>Share the agent application</h2><p>Ask the agent to create an account, verify their mobile number, and submit their service areas. Their verified application will appear here for approval.</p><Link href="/agent/register" className="button button-primary">Open agent registration<ArrowRight size={16} /></Link></div></>;
-  if (pathname === '/admin/appointments') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select an approved property and an available time for an appointment." /><AppointmentBooking /></>;
+  if (pathname === '/admin/appointments') return <><PageHeading eyebrow="APPOINTMENTS" title="Appointments" description="Assign agents, confirm, reschedule or cancel appointment requests." /><AppointmentsList /></>;
+  if (pathname === '/admin/appointments/new') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select an approved property and an available time for an appointment." /><AppointmentBooking /></>;
+  if (pathname === '/agent/appointments') return <><PageHeading eyebrow="AGENT WORKSPACE" title="Assigned appointments" description="Confirm appointments, join calls and mark them completed." /><AppointmentsList /></>;
+  if (pathname === '/app/chat' || pathname === '/agent/chat' || pathname === '/admin/communications') return <><PageHeading eyebrow="MESSAGES" title="Messages" description="Conversations linked to your properties and appointments." /><ChatPanel /></>;
   if (pathname === '/app/properties/new') return <><PageHeading eyebrow="MY PROPERTIES" title="Register a property" description="Add your land or property in a supported Telangana district in a few guided steps." /><PropertyRegistration /></>;
-  if (pathname === '/app/appointments') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select a convenient date and time to speak with your Hyderabad agent." /><AppointmentBooking /></>;
+  if (pathname === '/app/appointments') return <><PageHeading eyebrow="APPOINTMENTS" title="My appointments" description="Track, join, reschedule or cancel your agent appointments." /><AppointmentsList /></>;
   if (pathname === '/app/appointments/new') return <><PageHeading eyebrow="APPOINTMENTS" title="Book an agent appointment" description="Select a convenient date and time to speak with your Hyderabad agent." /><AppointmentBooking /></>;
   if (pathname === '/app/payments') return <><PageHeading eyebrow="PAYMENT HISTORY" title="Payments" description="Track registration charges and provider-confirmed receipts." /><PaymentHistory /></>;
   if (pathname.startsWith('/audit/properties/')) {
@@ -735,7 +741,7 @@ function SectionPage({ pathname, properties, agents, activeAgents, userName, onR
     return (
       <>
         <PageHeading eyebrow="AGENT WORKSPACE" title={`Welcome, ${userName.split(' ')[0]}`} description="Chat with customers and manage your agent profile." />
-        <div className="dashboard-grid"><div className="card quick-card"><h2>Quick actions</h2><div className="quick-actions"><Link href="/agent/chat"><MessageCircle size={17} /><span><strong>Open chat</strong><small>Reply to customer messages</small></span><ArrowRight size={16} /></Link><Link href="/agent/profile"><Users size={17} /><span><strong>My profile</strong><small>Review your service areas and details</small></span><ArrowRight size={16} /></Link></div></div></div>
+        <div className="dashboard-grid"><div className="card quick-card"><h2>Quick actions</h2><div className="quick-actions"><Link href="/agent/appointments"><CalendarDays size={17} /><span><strong>Appointments</strong><small>See assigned appointments and join calls</small></span><ArrowRight size={16} /></Link><Link href="/agent/chat"><MessageCircle size={17} /><span><strong>Open chat</strong><small>Reply to customer messages</small></span><ArrowRight size={16} /></Link><Link href="/agent/profile"><Users size={17} /><span><strong>My profile</strong><small>Review your service areas and details</small></span><ArrowRight size={16} /></Link></div></div></div>
       </>
     );
   }
@@ -791,12 +797,11 @@ export default function NriLandTrackingSystemPage() {
   const passwordRoute = currentPath === '/account/password';
   const role = user ? roleByAccount[user.role] : null;
   const routeRole = role ?? 'NRI';
-  const agentAppointmentRoute = user?.role === 'AGENT' && currentPath.startsWith('/agent/appointments');
   const agentBlockedRoute = user?.role === 'AGENT' && (currentPath.includes('properties') || currentPath.includes('payments'));
   const permitted = Boolean(user && role && (
     (currentPath.startsWith('/admin') && user.role === 'ADMIN')
     || (currentPath.startsWith('/audit') && (user.role === 'ADMIN' || user.role === 'AUDITOR'))
-    || (currentPath.startsWith('/agent') && user.role === 'AGENT' && !agentAppointmentRoute && !agentBlockedRoute)
+    || (currentPath.startsWith('/agent') && user.role === 'AGENT' && !agentBlockedRoute)
     || (currentPath.startsWith('/app') && user.role === 'NRI')
     || passwordRoute
   ));
