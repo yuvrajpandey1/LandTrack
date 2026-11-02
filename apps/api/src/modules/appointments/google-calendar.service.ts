@@ -50,8 +50,9 @@ export class GoogleCalendarService {
   async createAppointment(booking: CalendarBooking): Promise<{ eventId: string; meetUrl: string | null }> {
     if (this.demoMode) {
       // Demo only: no Google event is created and no invitation is sent.
-      const code = randomUUID().replaceAll('-', '').slice(0, 10);
-      return { eventId: `demo-${randomUUID()}`, meetUrl: booking.mode === AppointmentMode.VIDEO ? `https://meet.google.com/demo-${code.slice(0, 3)}-${code.slice(3, 7)}-${code.slice(7)}` : null };
+      // Google Meet IDs can only be issued by Google, so demo video calls use a real, joinable Jitsi room.
+      const room = `LandTrack-${randomUUID().replaceAll('-', '').slice(0, 16)}`;
+      return { eventId: `demo-${randomUUID()}`, meetUrl: booking.mode === AppointmentMode.VIDEO ? `https://meet.jit.si/${room}` : null };
     }
     const token = await this.accessToken();
     const calendarId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID || 'primary');
