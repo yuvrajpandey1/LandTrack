@@ -12,7 +12,10 @@ WEB_PID=$!
 backend() {
 set -e
 PGBIN="$(ls -d /usr/lib/postgresql/*/bin | head -n1)"
-PGDATA=/tmp/pgdata
+PGDATA="${PGDATA_DIR:-/data/pgdata}"
+[ -w "$(dirname "$PGDATA")" ] || PGDATA=/tmp/pgdata
+echo "Postgres data directory: $PGDATA" >&2
+if [ -z "$EXTERNAL_DATABASE_URL" ]; then
 mkdir -p "$PGDATA"
 AS_PG=""
 if [ ! -s "$PGDATA/PG_VERSION" ]; then
@@ -21,13 +24,15 @@ fi
 $AS_PG "$PGBIN/pg_ctl" -D "$PGDATA" -o "-c listen_addresses=127.0.0.1 -c unix_socket_directories=/tmp" -w start >/dev/null
 $AS_PG "$PGBIN/psql" -h 127.0.0.1 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='landtrack'" | grep -q 1 \
   || $AS_PG "$PGBIN/createdb" -h 127.0.0.1 -U postgres landtrack
+fi
 redis-server --daemonize yes --save "" --bind 127.0.0.1 >/dev/null
 
 printf 'DatabaseDirectory /opt/clamdb\nTCPSocket 3310\nTCPAddr 127.0.0.1\nPidFile /tmp/clamd.pid\nTemporaryDirectory /tmp\nForeground yes\nMaxFileSize 100M\nStreamMaxLength 100M\nSelfCheck 0\n' > /tmp/clamd.conf
 clamd --config-file=/tmp/clamd.conf &
 
 export NODE_ENV=development
-export DATABASE_URL=postgresql://postgres@127.0.0.1:5432/landtrack
+# A managed Postgres (EXTERNAL_DATABASE_URL) keeps data permanently; otherwise the embedded one on /data is used.
+export DATABASE_URL="${EXTERNAL_DATABASE_URL:-postgresql://postgres@127.0.0.1:5432/landtrack}"
 export REDIS_URL=redis://127.0.0.1:6379
 export APP_URL="${APP_URL:-http://localhost:${PORT_PUBLIC}}"
 export API_URL="http://127.0.0.1:4000"

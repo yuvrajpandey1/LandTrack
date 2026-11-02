@@ -27,8 +27,11 @@ RUN pnpm install --frozen-lockfile \
 
 COPY infra/zoho-appsail infra/zoho-appsail
 COPY infra/zoho-appsail/entrypoint.sh /entrypoint.sh
-RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh \
+    && mkdir -p /data/pgdata && chown -R node:node /data
 
+# Mount a volume here to keep registered users and records across container restarts.
+VOLUME ["/data"]
 USER node
 ENV NODE_ENV=production
 EXPOSE 9000
