@@ -273,7 +273,7 @@ function Header({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   );
 }
 
-function Sidebar({ role, pathname }: { role: Role; pathname: string }) {
+function Sidebar({ role, pathname, name }: { role: Role; pathname: string; name: string }) {
   return (
     <aside className="sidebar">
       <div className="workspace-label">WORKSPACE</div>
@@ -295,8 +295,8 @@ function Sidebar({ role, pathname }: { role: Role; pathname: string }) {
         </div>
       )}
       <div className="sidebar-footer">
-        <span className="avatar avatar-small">{role === 'NRI' ? 'NR' : role === 'Agent' ? 'AG' : role === 'Auditor' ? 'AU' : 'JD'}</span>
-        <div><strong>{role === 'NRI' ? 'NRI User' : role === 'Agent' ? 'Agent account' : role === 'Auditor' ? 'Audit account' : 'Jane Doe'}</strong><span>{role}</span></div>
+        <span className="avatar avatar-small">{name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()}</span>
+        <div><strong>{name}</strong><span>{role}</span></div>
         <MoreHorizontal size={19} className="sidebar-more" />
       </div>
     </aside>
@@ -731,8 +731,17 @@ function SectionPage({ pathname, properties, agents, activeAgents, userName, onR
   }
   if (pathname === '/app') return <NriDashboard properties={properties} name={userName} />;
   if (pathname === '/app/properties') return <NriProperties properties={properties} />;
-  if (pathname === '/app' || pathname === '/agent') {
-    const isAgent = pathname === '/agent';
+  if (pathname === '/agent') {
+    return (
+      <>
+        <PageHeading eyebrow="AGENT WORKSPACE" title={`Welcome, ${userName.split(' ')[0]}`} description="Chat with customers and manage your agent profile." />
+        <div className="dashboard-grid"><div className="card quick-card"><h2>Quick actions</h2><div className="quick-actions"><Link href="/agent/chat"><MessageCircle size={17} /><span><strong>Open chat</strong><small>Reply to customer messages</small></span><ArrowRight size={16} /></Link><Link href="/agent/profile"><Users size={17} /><span><strong>My profile</strong><small>Review your service areas and details</small></span><ArrowRight size={16} /></Link></div></div></div>
+      </>
+    );
+  }
+  if (pathname.startsWith('/agent') && (pathname.includes('properties') || pathname.includes('payments'))) return null;
+  if (pathname === '/app') {
+    const isAgent = false;
     const approved = properties.filter((property) => property.status === 'Approved').length;
     const underReview = properties.filter((property) => property.status === 'Under review').length;
     return (
@@ -783,10 +792,11 @@ export default function NriLandTrackingSystemPage() {
   const role = user ? roleByAccount[user.role] : null;
   const routeRole = role ?? 'NRI';
   const agentAppointmentRoute = user?.role === 'AGENT' && currentPath.startsWith('/agent/appointments');
+  const agentBlockedRoute = user?.role === 'AGENT' && (currentPath.includes('properties') || currentPath.includes('payments'));
   const permitted = Boolean(user && role && (
     (currentPath.startsWith('/admin') && user.role === 'ADMIN')
     || (currentPath.startsWith('/audit') && (user.role === 'ADMIN' || user.role === 'AUDITOR'))
-    || (currentPath.startsWith('/agent') && user.role === 'AGENT' && !agentAppointmentRoute)
+    || (currentPath.startsWith('/agent') && user.role === 'AGENT' && !agentAppointmentRoute && !agentBlockedRoute)
     || (currentPath.startsWith('/app') && user.role === 'NRI')
     || passwordRoute
   ));
@@ -885,7 +895,7 @@ export default function NriLandTrackingSystemPage() {
     <main className="app-shell">
       <Header name={user.name} onSignOut={handleSignOut} />
       <div className="app-body">
-        <Sidebar role={routeRole} pathname={currentPath} />
+        <Sidebar role={routeRole} pathname={currentPath} name={user.name} />
         <div className="main-column">
           <main className="page-content">
             {sessionError && <p className="form-error" role="alert">{sessionError}</p>}
