@@ -21,6 +21,8 @@ AS_PG=""
 if [ ! -s "$PGDATA/PG_VERSION" ]; then
   $AS_PG "$PGBIN/initdb" -D "$PGDATA" -U postgres -A trust >/dev/null
 fi
+# A stale lock from a force-removed container would block startup; only one container uses this volume.
+rm -f "$PGDATA/postmaster.pid"
 $AS_PG "$PGBIN/pg_ctl" -D "$PGDATA" -o "-c listen_addresses=127.0.0.1 -c unix_socket_directories=/tmp" -w start >/dev/null
 $AS_PG "$PGBIN/psql" -h 127.0.0.1 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='landtrack'" | grep -q 1 \
   || $AS_PG "$PGBIN/createdb" -h 127.0.0.1 -U postgres landtrack
