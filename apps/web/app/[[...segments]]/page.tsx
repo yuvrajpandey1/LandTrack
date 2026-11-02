@@ -166,6 +166,87 @@ const statusClasses: Record<PropertyStatus, string> = {
   Draft: 'status-gray'
 };
 
+function DualClock() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+  if (!now) return null;
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const fmt = (timeZone: string) => new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', timeZone }).format(now);
+  return <span className="dual-clock" title="Your time zone and India Standard Time"><Clock3 size={14} /><span><small>{zone.split('/').pop()?.replace('_', ' ')}</small>{fmt(zone)}</span><span><small>IST</small>{fmt('Asia/Kolkata')}</span></span>;
+}
+
+const statusTone: Record<PropertyStatus, string> = {
+  Draft: 'status-gray', 'Payment pending': 'status-amber', 'Under review': 'status-blue', Approved: 'status-green', Rejected: 'status-red'
+};
+
+function PropertyCards({ properties, filter }: { properties: Property[]; filter: string }) {
+  const list = properties.filter((property) => {
+    if (filter === 'action') return property.status === 'Draft' || property.status === 'Payment pending' || property.status === 'Rejected';
+    if (filter === 'review') return property.status === 'Under review';
+    if (filter === 'approved') return property.status === 'Approved';
+    return true;
+  });
+  if (list.length === 0) return <div className="card empty-state"><Building2 size={28} /><h2>No properties here yet</h2><p>Properties you register will appear in this view.</p></div>;
+  return (
+    <div className="prop-grid">
+      {list.map((property) => (
+        <article key={property.id} className="prop-card">
+          <div className="prop-card-top"><span className={`status-pill ${statusTone[property.status]}`}>{property.status}</span><small>{property.propertyType?.replaceAll('_', ' ').toLowerCase()}</small></div>
+          <h3>{property.name}</h3>
+          <p><MapPin size={14} />{property.location}</p>
+          <dl><div><dt>Area</dt><dd>{property.area} {property.unit}</dd></div><div><dt>Survey no.</dt><dd>{property.surveyNumber ?? '—'}</dd></div></dl>
+          <footer><span>{property.submitted}</span>{(property.status === 'Draft' || property.status === 'Payment pending') && <Link href="/app/properties/new" className="text-action">Continue <ArrowRight size={14} /></Link>}</footer>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function NriProperties({ properties }: { properties: Property[] }) {
+  const [filter, setFilter] = useState('all');
+  const pills = [['all', 'All'], ['action', 'Needs your action'], ['review', 'In review'], ['approved', 'Approved']];
+  return (
+    <>
+      <PageHeading eyebrow="MY PROPERTIES" title="My properties" description="Track every property you have registered." action={<Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Add property</Link>} />
+      <div className="filter-pills">{pills.map(([key, label]) => <button key={key} className={filter === key ? 'active' : ''} onClick={() => setFilter(key)}>{label}</button>)}</div>
+      <PropertyCards properties={properties} filter={filter} />
+    </>
+  );
+}
+
+function NriDashboard({ properties, name }: { properties: Property[]; name: string }) {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const action = properties.filter((p) => p.status === 'Draft' || p.status === 'Payment pending' || p.status === 'Rejected');
+  const review = properties.filter((p) => p.status === 'Under review').length;
+  const approved = properties.filter((p) => p.status === 'Approved').length;
+  const journey = [
+    ['Register your first property', properties.length > 0],
+    ['Complete payment and submit', properties.some((p) => p.status !== 'Draft' && p.status !== 'Payment pending')],
+    ['Get approved by our team', approved > 0]
+  ] as const;
+  return (
+    <>
+      <PageHeading eyebrow="MY PORTAL" title={`${greeting}, ${name.split(' ')[0]}`} description="Here is where your land stands today." action={<Link className="button button-primary" href="/app/properties/new"><Plus size={17} />Add property</Link>} />
+      {action.length > 0 && <div className="action-banner"><div><strong>{action.length} {action.length === 1 ? 'property needs' : 'properties need'} your attention</strong><span>Finish details or payment so we can start the review.</span></div><Link className="button button-primary" href="/app/properties">Review<ArrowRight size={15} /></Link></div>}
+      <section className="stats-grid">
+        <StatCard title="Properties" value={String(properties.length).padStart(2, '0')} change="Total registered" icon={Building2} />
+        <StatCard title="Needs your action" value={String(action.length).padStart(2, '0')} change="Draft or payment" icon={Clock3} tone="amber" />
+        <StatCard title="In review" value={String(review).padStart(2, '0')} change="With our team" icon={ClipboardCheck} tone="purple" />
+        <StatCard title="Approved" value={String(approved).padStart(2, '0')} change="Ready for agents" icon={CheckCircle2} tone="green" />
+      </section>
+      <div className="dashboard-grid">
+        <div className="card quick-card"><h2>Recent properties</h2>{properties.length === 0 ? <p className="muted">No properties yet.</p> : <PropertyCards properties={properties.slice(0, 2)} filter="all" />}</div>
+        <div className="card quick-card"><h2>Your journey</h2><ol className="journey">{journey.map(([label, done]) => <li key={label} className={done ? 'done' : ''}><span>{done ? <Check size={13} /> : null}</span>{label}</li>)}</ol><div className="quick-actions"><Link href="/app/appointments/new"><CalendarDays size={17} /><span><strong>Book an appointment</strong><small>Available for approved properties</small></span><ArrowRight size={16} /></Link></div></div>
+      </div>
+    </>
+  );
+}
+
 function Header({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   return (
     <header className="topbar">
@@ -180,6 +261,7 @@ function Header({ name, onSignOut }: { name: string; onSignOut: () => void }) {
           <input aria-label="Search" placeholder="Search properties, people..." />
           <kbd>⌘ K</kbd>
         </label>
+        <DualClock />
         <Link className="agent-register-link" href="/account/password">Change password</Link>
         <button className="icon-button notification-button" aria-label="Notifications">
           <Bell size={19} /><span className="notification-dot" />
@@ -621,8 +703,9 @@ function AuditDetail({ property }: { property: Property | undefined }) {
   );
 }
 
-function SectionPage({ pathname, properties, agents, activeAgents, onReviewProperty, onReviewAgent }: {
+function SectionPage({ pathname, properties, agents, activeAgents, userName, onReviewProperty, onReviewAgent }: {
   pathname: string;
+  userName: string;
   properties: Property[];
   agents: Agent[];
   activeAgents: number;
@@ -646,6 +729,8 @@ function SectionPage({ pathname, properties, agents, activeAgents, onReviewPrope
   if (pathname === '/admin/properties') {
     return <><PageHeading eyebrow="PROPERTY REVIEW" title="Property submissions" description="Review property registrations and update their status." /><PropertyTable properties={properties} onStatusChange={onReviewProperty} /></>;
   }
+  if (pathname === '/app') return <NriDashboard properties={properties} name={userName} />;
+  if (pathname === '/app/properties') return <NriProperties properties={properties} />;
   if (pathname === '/app' || pathname === '/agent') {
     const isAgent = pathname === '/agent';
     const approved = properties.filter((property) => property.status === 'Approved').length;
@@ -808,7 +893,7 @@ export default function NriLandTrackingSystemPage() {
               ? <PasswordChangePage />
               : recordsError
               ? <section className="card empty-state"><h2>Workspace data unavailable</h2><p role="alert">{recordsError}</p><button className="button button-primary" onClick={() => { void refreshRecords(); }}>Try again</button></section>
-              : <SectionPage pathname={currentPath} properties={properties} agents={agents} activeAgents={activeAgents} onReviewProperty={reviewProperty} onReviewAgent={reviewAgent} />}
+              : <SectionPage pathname={currentPath} properties={properties} agents={agents} activeAgents={activeAgents} userName={user.name} onReviewProperty={reviewProperty} onReviewAgent={reviewAgent} />}
           </main>
           <footer className="app-footer"><span>NRI Land Tracking System · Hyderabad, Telangana</span><span>Secure account workspace</span></footer>
         </div>

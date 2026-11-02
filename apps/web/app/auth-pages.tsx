@@ -11,19 +11,30 @@ type District = { id: string; name: string };
 
 function AuthFrame({ children, title, description }: { children: React.ReactNode; title: string; description: string }) {
   return (
-    <main className="auth-page">
-      <Link href="/" className="brand auth-brand" aria-label="NRI Land Tracking System home">
-        <span className="brand-mark"><LandPlot size={21} strokeWidth={2.4} /></span>
-        <span>NRI Land Tracking System</span>
-      </Link>
-      <section className="card auth-card">
-        <div className="auth-heading">
-          <span className="agent-form-icon"><ShieldCheck size={20} /></span>
-          <div><h1>{title}</h1><p>{description}</p></div>
+    <main className="auth-split">
+      <aside className="auth-side">
+        <Link href="/" className="lp-logo" aria-label="LandTrack home">
+          <span className="brand-mark"><LandPlot size={20} /></span>LandTrack
+        </Link>
+        <div>
+          <p>“I live in New Jersey. My plot in Shamshabad finally has someone looking after it.”</p>
+          <small>Times shown in your time zone and in IST, always.</small>
         </div>
-        {children}
-      </section>
-      <p className="auth-region">NRI Land Tracking System · Hyderabad, Telangana</p>
+      </aside>
+      <div className="auth-page">
+        <Link href="/" className="brand auth-brand auth-brand-mobile" aria-label="NRI Land Tracking System home">
+          <span className="brand-mark"><LandPlot size={21} strokeWidth={2.4} /></span>
+          <span>LandTrack</span>
+        </Link>
+        <section className="card auth-card">
+          <div className="auth-heading">
+            <span className="agent-form-icon"><ShieldCheck size={20} /></span>
+            <div><h1>{title}</h1><p>{description}</p></div>
+          </div>
+          {children}
+        </section>
+        <p className="auth-region">NRI Land Tracking System · Hyderabad, Telangana</p>
+      </div>
     </main>
   );
 }
