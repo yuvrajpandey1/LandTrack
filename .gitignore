@@ -15,3 +15,5 @@ packages/shared/src/index.js
 packages/shared/src/index.js.map
 
 infra/podman.env
+
+infra/zoho-appsail/runtime.env

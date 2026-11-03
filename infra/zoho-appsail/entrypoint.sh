@@ -32,6 +32,8 @@ redis-server --daemonize yes --save "" --bind 127.0.0.1 >/dev/null
 printf 'DatabaseDirectory /opt/clamdb\nTCPSocket 3310\nTCPAddr 127.0.0.1\nPidFile /tmp/clamd.pid\nTemporaryDirectory /tmp\nForeground yes\nMaxFileSize 100M\nStreamMaxLength 100M\nSelfCheck 0\n' > /tmp/clamd.conf
 clamd --config-file=/tmp/clamd.conf &
 
+# Optional private settings (SMTP_URL, MAIL_FROM, EXTERNAL_DATABASE_URL, ...) baked in at build from the git-ignored runtime.env.
+if [ -f /workspace/infra/zoho-appsail/runtime.env ]; then set -a; . /workspace/infra/zoho-appsail/runtime.env; set +a; fi
 export NODE_ENV=development
 # A managed Postgres (EXTERNAL_DATABASE_URL) keeps data permanently; otherwise the embedded one on /data is used.
 export DATABASE_URL="${EXTERNAL_DATABASE_URL:-postgresql://postgres@127.0.0.1:5432/landtrack}"
@@ -54,7 +56,7 @@ export SMS_PROVIDER=fake WHATSAPP_PROVIDER=fake PAYMENT_PROVIDER=fake WHATSAPP_V
 # Demo calendar: appointments are confirmed without Google. Set real GOOGLE_CALENDAR_* credentials and GOOGLE_CALENDAR_PROVIDER=google to use Google.
 export GOOGLE_CALENDAR_PROVIDER="${GOOGLE_CALENDAR_PROVIDER:-fake}"
 export JITSI_DOMAIN=localhost:8443 JITSI_APP_ID=landtrack JITSI_WEBHOOK_SECRET=demo
-export ADMIN_EMAIL="${ADMIN_EMAIL:-admin@landtrack.example}"
+export ADMIN_EMAIL="${ADMIN_EMAIL:-adminlandtrack@gmail.com}"
 export ADMIN_NAME="${ADMIN_NAME:-NRI Land Tracking System Administrator}"
 export ADMIN_MOBILE="${ADMIN_MOBILE:-+919876543210}"
 export ADMIN_INITIAL_PASSWORD="${ADMIN_INITIAL_PASSWORD:-}"
