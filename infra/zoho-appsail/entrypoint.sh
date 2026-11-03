@@ -21,6 +21,8 @@ AS_PG=""
 if [ ! -s "$PGDATA/PG_VERSION" ]; then
   $AS_PG "$PGBIN/initdb" -D "$PGDATA" -U postgres -A trust >/dev/null
 fi
+# A stale lock from a force-removed container would block startup; only one container uses this volume.
+rm -f "$PGDATA/postmaster.pid"
 $AS_PG "$PGBIN/pg_ctl" -D "$PGDATA" -o "-c listen_addresses=127.0.0.1 -c unix_socket_directories=/tmp" -w start >/dev/null
 $AS_PG "$PGBIN/psql" -h 127.0.0.1 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='landtrack'" | grep -q 1 \
   || $AS_PG "$PGBIN/createdb" -h 127.0.0.1 -U postgres landtrack
@@ -30,6 +32,8 @@ redis-server --daemonize yes --save "" --bind 127.0.0.1 >/dev/null
 printf 'DatabaseDirectory /opt/clamdb\nTCPSocket 3310\nTCPAddr 127.0.0.1\nPidFile /tmp/clamd.pid\nTemporaryDirectory /tmp\nForeground yes\nMaxFileSize 100M\nStreamMaxLength 100M\nSelfCheck 0\n' > /tmp/clamd.conf
 clamd --config-file=/tmp/clamd.conf &
 
+# Optional private settings (SMTP_URL, MAIL_FROM, EXTERNAL_DATABASE_URL, ...) baked in at build from the git-ignored runtime.env.
+if [ -f /workspace/infra/zoho-appsail/runtime.env ]; then set -a; . /workspace/infra/zoho-appsail/runtime.env; set +a; fi
 export NODE_ENV=development
 # A managed Postgres (EXTERNAL_DATABASE_URL) keeps data permanently; otherwise the embedded one on /data is used.
 export DATABASE_URL="${EXTERNAL_DATABASE_URL:-postgresql://postgres@127.0.0.1:5432/landtrack}"
