@@ -11,6 +11,8 @@ WEB_PID=$!
 
 backend() {
 set -e
+# Optional private settings (SMTP_URL, MAIL_FROM, EXTERNAL_DATABASE_URL, ...) baked in at build from the git-ignored runtime.env.
+if [ -f /workspace/infra/zoho-appsail/runtime.env ]; then set -a; . /workspace/infra/zoho-appsail/runtime.env; set +a; fi
 PGBIN="$(ls -d /usr/lib/postgresql/*/bin | head -n1)"
 PGDATA="${PGDATA_DIR:-/data/pgdata}"
 [ -w "$(dirname "$PGDATA")" ] || PGDATA=/tmp/pgdata
@@ -24,16 +26,21 @@ fi
 # A stale lock from a force-removed container would block startup; only one container uses this volume.
 rm -f "$PGDATA/postmaster.pid"
 $AS_PG "$PGBIN/pg_ctl" -D "$PGDATA" -o "-c listen_addresses=127.0.0.1 -c unix_socket_directories=/tmp" -w start >/dev/null
-$AS_PG "$PGBIN/psql" -h 127.0.0.1 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='landtrack'" | grep -q 1 \
-  || $AS_PG "$PGBIN/createdb" -h 127.0.0.1 -U postgres landtrack
+if ! $AS_PG "$PGBIN/psql" -h 127.0.0.1 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='landtrack'" | grep -q 1; then
+  $AS_PG "$PGBIN/createdb" -h 127.0.0.1 -U postgres landtrack
+  # A new database is loaded from the git-ignored seed.sql (a pg_dump of the migrated local data) when present.
+  SEED_SQL=/workspace/infra/zoho-appsail/seed.sql
+  if [ -f "$SEED_SQL" ]; then
+    echo "Restoring LandTrack data from seed.sql" >&2
+    $AS_PG "$PGBIN/psql" -q -h 127.0.0.1 -U postgres -d landtrack -v ON_ERROR_STOP=1 -f "$SEED_SQL" >/dev/null
+  fi
+fi
 fi
 redis-server --daemonize yes --save "" --bind 127.0.0.1 >/dev/null
 
 printf 'DatabaseDirectory /opt/clamdb\nTCPSocket 3310\nTCPAddr 127.0.0.1\nPidFile /tmp/clamd.pid\nTemporaryDirectory /tmp\nForeground yes\nMaxFileSize 100M\nStreamMaxLength 100M\nSelfCheck 0\n' > /tmp/clamd.conf
 clamd --config-file=/tmp/clamd.conf &
 
-# Optional private settings (SMTP_URL, MAIL_FROM, EXTERNAL_DATABASE_URL, ...) baked in at build from the git-ignored runtime.env.
-if [ -f /workspace/infra/zoho-appsail/runtime.env ]; then set -a; . /workspace/infra/zoho-appsail/runtime.env; set +a; fi
 export NODE_ENV=development
 # A managed Postgres (EXTERNAL_DATABASE_URL) keeps data permanently; otherwise the embedded one on /data is used.
 export DATABASE_URL="${EXTERNAL_DATABASE_URL:-postgresql://postgres@127.0.0.1:5432/landtrack}"
@@ -41,7 +48,14 @@ export REDIS_URL=redis://127.0.0.1:6379
 export APP_URL="${APP_URL:-http://localhost:${PORT_PUBLIC}}"
 export API_URL="http://127.0.0.1:4000"
 export PORT=4000
-export S3_ENDPOINT=http://127.0.0.1:9100 S3_REGION=ap-south-1 S3_BUCKET=landtrack S3_ACCESS_KEY=demo S3_SECRET_KEY=demo-secret
+# Neon object storage (AWS_* from `neon deploy`) keeps uploads permanently; otherwise an in-memory S3 stand-in is used.
+if [ -n "$AWS_ENDPOINT_URL_S3" ]; then
+  export S3_ENDPOINT="$AWS_ENDPOINT_URL_S3" S3_REGION="${AWS_REGION:-us-east-1}" S3_BUCKET="${S3_BUCKET:-assets}"
+  export S3_ACCESS_KEY="$AWS_ACCESS_KEY_ID" S3_SECRET_KEY="$AWS_SECRET_ACCESS_KEY"
+else
+  export S3_ENDPOINT=http://127.0.0.1:9100 S3_REGION=ap-south-1 S3_BUCKET=landtrack S3_ACCESS_KEY=demo S3_SECRET_KEY=demo-secret
+  node infra/zoho-appsail/s3-stub.mjs &
+fi
 if [ -z "$SMTP_URL" ]; then
   # No real email service configured: capture outgoing mail (e.g. admin setup codes) in the container log.
   node infra/zoho-appsail/smtp-sink.mjs &
@@ -63,9 +77,12 @@ export ADMIN_INITIAL_PASSWORD="${ADMIN_INITIAL_PASSWORD:-}"
 export ADMIN_NOTIFY_EMAIL="$ADMIN_EMAIL" ADMIN_SETUP_EMAIL="$ADMIN_EMAIL" GOOGLE_CALENDAR_ADMIN_EMAIL="$ADMIN_EMAIL"
 
 cd /workspace
-node infra/zoho-appsail/s3-stub.mjs &
 (cd apps/api && node_modules/.bin/prisma migrate deploy)
-(cd apps/api && node_modules/.bin/tsx prisma/seed.ts) || true
+# The seed upserts ~2,700 location rows one by one; on a remote database that delays startup by minutes,
+# so an external database (already seeded) skips it unless SEED_ON_START=true.
+if [ -z "$EXTERNAL_DATABASE_URL" ] || [ "$SEED_ON_START" = "true" ]; then
+  (cd apps/api && node_modules/.bin/tsx prisma/seed.ts) || true
+fi
 while true; do node apps/api/dist/main.js; echo "api exited, restarting"; sleep 2; done
 }
 

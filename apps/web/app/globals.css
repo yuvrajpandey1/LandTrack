@@ -586,3 +586,10 @@ h1, h2, .page-heading h1, .brand { font-family: Fraunces, Georgia, serif; letter
 .reschedule-panel label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; max-width: 220px; }
 .reschedule-panel input { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; }
 @media (max-width: 800px) { .chat-shell { grid-template-columns: 1fr; } .chat-list { max-height: 220px; border-right: 0; border-bottom: 1px solid var(--line); } }
+
+/* LandTrack logo (app/brand-logo.tsx) */
+.brand-logo { display: inline-flex; align-items: center; line-height: 0; }
+.brand-logo-img { display: block; height: auto; max-width: 100%; }
+.brand-logo-badge { padding: 6px 12px; background: #fff; border-radius: 10px; box-shadow: 0 6px 18px rgb(8 28 20 / 18%); }
+.nri-hero-brand { padding: 0; border: 0; }
+@media (max-width: 640px) { .topbar .brand-logo-img, .auth-brand-mobile .brand-logo-img { height: 28px; width: auto; } .lp-logo .brand-logo-img { height: 30px; width: auto; } }

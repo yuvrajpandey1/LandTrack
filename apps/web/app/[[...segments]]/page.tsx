@@ -3,7 +3,7 @@
 import {
   Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Bell, Building2, CalendarDays,
   Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, FileText,
-  Filter, Home, LandPlot, LayoutDashboard, MapPin, MessageCircle, MoreHorizontal,
+  Filter, Home, LayoutDashboard, MapPin, MessageCircle, MoreHorizontal,
   LogOut, Plus, Search, ShieldCheck, SlidersHorizontal, UserPlus, Users, Wallet, X
 } from 'lucide-react';
 import Link from 'next/link';
@@ -15,6 +15,7 @@ import { LandingPage } from '../landing';
 import { PaymentHistory } from '../payment-history';
 import { PropertyRegistration } from '../property-registration';
 import { useSession, type AccountRole } from '../session-provider';
+import { BrandLogo } from '../brand-logo';
 
 type Role = 'Admin' | 'Auditor' | 'Agent' | 'NRI';
 const roleByAccount: Record<AccountRole, Role> = { ADMIN: 'Admin', AUDITOR: 'Auditor', AGENT: 'Agent', NRI: 'NRI' };
@@ -250,9 +251,8 @@ function NriDashboard({ properties, name }: { properties: Property[]; name: stri
 function Header({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   return (
     <header className="topbar">
-      <Link href="/" className="brand" aria-label="NRI Land Tracking System home">
-        <span className="brand-mark"><LandPlot size={21} strokeWidth={2.4} /></span>
-        <span>NRI Land Tracking System</span>
+      <Link href="/" className="brand" aria-label="LandTrack home">
+        <BrandLogo height={36} />
         <span className="region-pill">HYDERABAD</span>
       </Link>
       <div className="topbar-actions">

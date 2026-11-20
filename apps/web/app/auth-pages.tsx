@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowRight, BadgeCheck, LandPlot, LayoutDashboard, MapPin, Scale, ShieldCheck } from 'lucide-react';
+import { ArrowRight, BadgeCheck, LayoutDashboard, MapPin, Scale, ShieldCheck } from 'lucide-react';
 import { supportedCountries } from './countries';
 import { ApiError, useSession } from './session-provider';
+import { BrandLogo } from './brand-logo';
 
 type District = { id: string; name: string };
 
@@ -14,7 +15,7 @@ function AuthFrame({ children, title, description }: { children: React.ReactNode
     <main className="auth-split">
       <aside className="auth-side">
         <Link href="/" className="lp-logo" aria-label="LandTrack home">
-          <span className="brand-mark"><LandPlot size={20} /></span>LandTrack
+          <BrandLogo height={38} onDark />
         </Link>
         <div>
           <p>“I live in New Jersey. My plot in Shamshabad finally has someone looking after it.”</p>
@@ -22,9 +23,8 @@ function AuthFrame({ children, title, description }: { children: React.ReactNode
         </div>
       </aside>
       <div className="auth-page">
-        <Link href="/" className="brand auth-brand auth-brand-mobile" aria-label="NRI Land Tracking System home">
-          <span className="brand-mark"><LandPlot size={21} strokeWidth={2.4} /></span>
-          <span>LandTrack</span>
+        <Link href="/" className="brand auth-brand auth-brand-mobile" aria-label="LandTrack home">
+          <BrandLogo height={36} />
         </Link>
         <section className="card auth-card">
           <div className="auth-heading">
@@ -231,8 +231,8 @@ export function NriRegistrationPage() {
 
   return (
     <main className="nri-split">
-      <aside className="nri-hero" aria-label="LandTracker benefits">
-        <Link href="/" className="nri-hero-brand" aria-label="LandTracker home"><LandPlot size={16} strokeWidth={2.4} /><span>LandTracker</span></Link>
+      <aside className="nri-hero" aria-label="LandTrack benefits">
+        <Link href="/" className="nri-hero-brand" aria-label="LandTrack home"><BrandLogo height={30} onDark /></Link>
         <div className="nri-hero-copy">
           <h2>Start Your<br />Protection Journey.</h2>
           <ul>
@@ -335,11 +335,11 @@ export function AgentRegistrationPage() {
 
   return (
     <main className="nri-split">
-      <aside className="nri-hero" aria-label="Why join LandTracker">
-        <Link href="/" className="nri-hero-brand" aria-label="LandTracker home"><LandPlot size={16} strokeWidth={2.4} /><span>LandTracker</span></Link>
+      <aside className="nri-hero" aria-label="Why join LandTrack">
+        <Link href="/" className="nri-hero-brand" aria-label="LandTrack home"><BrandLogo height={30} onDark /></Link>
         <div className="nri-hero-copy">
           <h2>Empowering<br />Local Experts.</h2>
-          <blockquote className="nri-quote">&ldquo;Being a verified agent on LandTracker has helped me work with clients across different countries.&rdquo;<cite>Verified Hyderabad agent</cite></blockquote>
+          <blockquote className="nri-quote">&ldquo;Being a verified agent on LandTrack has helped me work with clients across different countries.&rdquo;<cite>Verified Hyderabad agent</cite></blockquote>
           <ul>
             <li><BadgeCheck size={14} /><div><strong>Access High-value Clients</strong></div></li>
             <li><ShieldCheck size={14} /><div><strong>Streamlined Document Verification</strong></div></li>

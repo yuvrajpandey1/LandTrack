@@ -2,9 +2,15 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { SessionProvider } from './session-provider';
 
+const description = 'Register and track Hyderabad property, appointments, and communications with the NRI Land Tracking System.';
+
 export const metadata: Metadata = {
-  title: 'NRI Land Tracking System',
-  description: 'Register and track Hyderabad property, appointments, and communications with the NRI Land Tracking System.'
+  // Absolute base for the social preview image (app/opengraph-image.jpg); override with NEXT_PUBLIC_SITE_URL.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://landtrack-50046989602.development.catalystappsail.in'),
+  title: 'LandTrack | NRI Land Tracking System',
+  applicationName: 'LandTrack',
+  description,
+  openGraph: { siteName: 'LandTrack', title: 'LandTrack | NRI Land Tracking System', description, type: 'website' }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

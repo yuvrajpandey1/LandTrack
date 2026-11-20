@@ -17,3 +17,6 @@ packages/shared/src/index.js.map
 infra/podman.env
 
 infra/zoho-appsail/runtime.env
+infra/zoho-appsail/seed.sql
+.migration/
+.neon

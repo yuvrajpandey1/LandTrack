@@ -1,5 +1,6 @@
-import { ArrowRight, Banknote, FileCheck2, LandPlot, MapPinned, ShieldCheck, UserCheck } from 'lucide-react';
+import { ArrowRight, Banknote, FileCheck2, MapPinned, ShieldCheck, UserCheck } from 'lucide-react';
 import Link from 'next/link';
+import { BrandLogo } from './brand-logo';
 
 const steps = [
   { icon: UserCheck, title: 'Register & verify', text: 'Create your NRI account and verify your mobile number.' },
@@ -20,7 +21,7 @@ export function LandingPage({ signedIn, portalHref }: { signedIn: boolean; porta
     <div className="lp">
       <section className="lp-hero" style={{ backgroundImage: 'linear-gradient(180deg, rgb(10 30 22 / 55%), rgb(10 30 22 / 82%)), url(/hero-land.jpg)' }}>
         <header className="lp-header">
-          <span className="lp-logo"><span className="brand-mark"><LandPlot size={20} /></span>LandTrack</span>
+          <span className="lp-logo"><BrandLogo height={38} onDark /></span>
           <nav>
             {signedIn
               ? <Link className="lp-btn lp-btn-glass" href={portalHref}>My portal</Link>
